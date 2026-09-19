@@ -2,6 +2,7 @@ import time
 import logging
 import signal
 import sys
+from gi.repository import GLib
 from vcontrol.backend.watchdog import get_watchdog
 
 logging.basicConfig(
@@ -11,9 +12,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+loop = GLib.MainLoop()
+
 def handle_sigterm(signum, frame):
     logger.info("Servis durduruluyor...")
     get_watchdog().stop()
+    loop.quit()
     sys.exit(0)
 
 def main():
@@ -24,11 +28,8 @@ def main():
     watchdog = get_watchdog()
     watchdog.start()
     
-    # Ana thread'i sonsuz döngüde tut (GLib loop yerine basit sleep kullanıyoruz çünkü GLib gerekmeyebilir)
-    # Watchdog kendi içinde timer thread'i başlatıyor, bu yüzden ana thread'i uyutuyoruz
     try:
-        while True:
-            time.sleep(3600)
+        loop.run()
     except KeyboardInterrupt:
         handle_sigterm(None, None)
 

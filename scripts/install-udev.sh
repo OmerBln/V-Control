@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# hp-victus-tools — Sistem izin kurulumu
+# v-control — Sistem izin kurulumu
 # İki yöntem: sudoers (tercih) + udev (yedek)
 
 set -euo pipefail
@@ -8,24 +8,26 @@ if [[ $EUID -ne 0 ]]; then
     exec sudo bash "$0" "$@"
 fi
 
-SUDOERS_FILE="/etc/sudoers.d/hp-victus-tools"
-UDEV_FILE="/etc/udev/rules.d/99-hp-victus-tools.rules"
+SUDOERS_FILE="/etc/sudoers.d/v-control"
+UDEV_FILE="/etc/udev/rules.d/99-v-control.rules"
 HWMON_PATH="/sys/devices/platform/hp-wmi/hwmon"
 
 echo "[INFO] Sudoers kuralı yazılıyor: $SUDOERS_FILE"
 cat > "$SUDOERS_FILE" << 'SUDOEOF'
-# hp-victus-tools: Şifresiz fan kontrolü
+# v-control: Şifresiz fan kontrolü
 # Yalnızca belirli sysfs dosyalarına tee ile yazılmasına izin verir.
 %wheel ALL=(root) NOPASSWD: /usr/bin/tee /sys/class/platform-profile/*/profile
 %wheel ALL=(root) NOPASSWD: /usr/bin/tee /sys/devices/platform/hp-wmi/platform-profile/*/profile
 %wheel ALL=(root) NOPASSWD: /usr/bin/tee /sys/devices/platform/hp-wmi/hwmon/hwmon*/pwm1_enable
+%wheel ALL=(root) NOPASSWD: /usr/bin/tee /sys/devices/platform/hp-wmi/hwmon/hwmon*/pwm1
+%wheel ALL=(root) NOPASSWD: /usr/bin/tee /sys/devices/platform/hp-wmi/hwmon/hwmon*/pwm2
 SUDOEOF
 chmod 440 "$SUDOERS_FILE"
 echo "[OK] Sudoers kuralı kuruldu."
 
 echo "[INFO] udev kuralı yazılıyor: $UDEV_FILE"
 cat > "$UDEV_FILE" << 'UDEVEOF'
-# hp-victus-tools: hp-wmi hwmon fan erişimi
+# v-control: hp-wmi hwmon fan erişimi
 SUBSYSTEM=="hwmon", ATTR{name}=="hp", GROUP="wheel", MODE="0664"
 UDEVEOF
 udevadm control --reload-rules

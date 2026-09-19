@@ -24,7 +24,11 @@ class FanController:
                 f.write(value)
             return True
         except PermissionError:
-            logger.error(f"Erişim engellendi (sudo eksik olabilir): {path}")
+            try:
+                subprocess.run(["sudo", "-n", "tee", path], input=value.encode(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                return True
+            except Exception:
+                logger.error(f"Erişim engellendi (sudo eksik olabilir): {path}")
         except Exception as e:
             logger.error(f"Sysfs yazma hatası ({path}): {e}")
         return False

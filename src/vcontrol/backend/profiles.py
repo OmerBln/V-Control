@@ -1,5 +1,3 @@
-
-
 import json
 import os
 import logging
@@ -18,11 +16,12 @@ class FanProfile:
     icon: str
     is_manual: bool = False
     manual_speed: int = 50
+    hysteresis: int = 4
 
 BUILTIN_PROFILES = [
-    FanProfile("Eco", "Eco Mod", "🍃"),
-    FanProfile("Balanced", "Dengeli Mod", "⚖️"),
-    FanProfile("Performance", "Performans Modu", "🚀"),
+    FanProfile("Eco", "Eco Mod", "🍃", hysteresis=4),
+    FanProfile("Balanced", "Dengeli Mod", "⚖️", hysteresis=4),
+    FanProfile("Performance", "Performans Modu", "🚀", hysteresis=4),
 ]
 
 class ProfileManager:
@@ -51,6 +50,7 @@ class ProfileManager:
                 if name in self._profiles:
                     self._profiles[name].is_manual = p_data.get("is_manual", False)
                     self._profiles[name].manual_speed = p_data.get("manual_speed", 50)
+                    self._profiles[name].hysteresis = p_data.get("hysteresis", 4)
         except Exception as e:
             logger.error(f"Profil yükleme hatası: {e}")
 
@@ -86,6 +86,11 @@ class ProfileManager:
         if name in self._profiles:
             self._profiles[name].is_manual = is_manual
             self._profiles[name].manual_speed = speed
+            self.save()
+
+    def update_hysteresis(self, name: str, hysteresis: int):
+        if name in self._profiles:
+            self._profiles[name].hysteresis = max(1, min(10, hysteresis))
             self.save()
 
 _manager = None
