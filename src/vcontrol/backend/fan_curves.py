@@ -24,31 +24,24 @@ PERFORMANCE_CURVE = [
     (75, 100),
 ]
 
-DEFAULT_HYSTERESIS = 4      # Soğuma toleransı (°C)
-DEFAULT_RISE_TOLERANCE = 2  # 70°C altı için ısınma toleransı (°C)
-PROTECTION_TEMP = 70        # Donanım koruma eşiği (bu dereceden itibaren gecikmesiz yükselir)
+DEFAULT_HYSTERESIS = 4   # Soğuma histerezis payı (°C)
+CRITICAL_TEMP = 88        # Acil donanım koruma eşiği (°C)
 
 def get_target_pwm(
     temp: int, 
     mode: str, 
     current_speed: int = -1, 
-    hysteresis: int = DEFAULT_HYSTERESIS,
-    rise_tolerance: int = DEFAULT_RISE_TOLERANCE,
-    protection_temp: int = PROTECTION_TEMP
+    hysteresis: int = DEFAULT_HYSTERESIS
 ) -> int:
     """
     Sıcaklığa ve aktif moda göre hedef fan hızını (%) hesaplar.
     
-    Kural ve Tolerans Davranışı:
-    1. Donanım Koruma (>= 70°C):
-       70°C ve üzerindeki sıcaklıklarda donanımı korumak için fanlar
-       gecikmesiz ve toleranssız olarak doğrudan eğri hızına yükseltilir.
-    2. Düşük/Orta Sıcaklıklar (< 70°C):
-       70°C altındaki sıcaklıklarda 1 derecelik dalgalanmalarda fanların
-       sürekli hızlanmasını önlemek için 'rise_tolerance' (+2°C) payı bırakılır.
-    3. Soğuma Histerezisi:
-       Sıcaklık düşerken ise mevcut eşikten en az 'hysteresis' (4°C) kadar
-       soğuma gerçekleşmeden alt kademeye geçilmez, hız sabit tutulur.
+    Histerezis (Tolerans):
+    Sıcaklık kademe sınırında (örn. 50°C) gezinirken fanların sürekli
+    devir yükseltip düşürmesini önler.
+    - Sıcaklık artarken ilgili kademenin hızını döndürür.
+    - Sıcaklık düşerken ise (eşik - histerezis) kadar soğuma olmadan
+      alt kademeye geçmez, mevcut hızı korur.
     """
     if mode == "Eco":
         curve = ECO_CURVE
@@ -57,7 +50,7 @@ def get_target_pwm(
     else:
         curve = BALANCED_CURVE
 
-    # İlk başlangıç veya bilinmeyen hızda doğrudan eşik kontrolü
+    # İlk başlangıç veya sıfırlanmış hızda doğrudan eşik kontrolü
     if current_speed < 0:
         target = curve[0][1]
         for threshold, speed in curve:
@@ -74,16 +67,10 @@ def get_target_pwm(
     # 1. Sıcaklık artışı (YUKARI KADEME):
     for idx in range(len(curve) - 1, current_idx, -1):
         threshold, speed = curve[idx]
-        if threshold >= protection_temp or temp >= protection_temp:
-            # 70°C ve üzeri: DONANIM KORUMASI - Gecikmesiz doğrudan eşiğe bak
-            if temp >= threshold:
-                return speed
-        else:
-            # 70°C altı: Isınma toleransı (+rise_tolerance) aranır
-            if temp >= (threshold + rise_tolerance):
-                return speed
+        if temp >= threshold:
+            return speed
 
-    # 2. Sıcaklık düşüşü (AŞAĞI KADEME):
+    # 2. Sıcaklık düşüşü (AŞAĞI KADEME - Histerezis):
     # Sıcaklık (mevcut eşik - histerezis) değerinin altına inmediyse hızı koru
     curr_threshold, curr_speed = curve[current_idx]
     down_threshold = curr_threshold - hysteresis
@@ -95,5 +82,5 @@ def get_target_pwm(
                 return speed
         return curve[0][1]
 
-    # Tolerans aralığında ise mevcut hızı koru
+    # Tolerans aralığında mevcut hızı koru
     return curr_speed
