@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "v-control"
+version = "0.1.0"
+description = "HP Victus 16 için fan ve RGB klavye kontrol uygulaması"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+keywords = ["hp", "victus", "fan", "rgb", "linux", "gaming"]
+
+dependencies = [
+    # GTK4 ve GObject sisteme kurulu (python-gobject), venv dışından kullanılır
+    # D-Bus sisteme kurulu (python-dbus), venv dışından kullanılır
+    # Bu yüzden sadece saf Python kütüphaneleri venv'e eklenir:
+    "psutil>=6.0",          # CPU/GPU sıcaklık ve sistem bilgisi
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.8",
+    "ruff>=0.3",
+]
+
+[project.scripts]
+v-control = "vcontrol.main:main"
+v-control-overlay = "vcontrol.overlay:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

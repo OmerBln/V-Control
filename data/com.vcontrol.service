@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=com.vcontrol
+Exec=/usr/local/bin/hp-victus-tools
+User=root

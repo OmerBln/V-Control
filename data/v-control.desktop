@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=HP Victus Tools
+GenericName=Laptop Fan & RGB Controller
+Comment=HP Victus 16 fan hızı ve RGB klavye arka aydınlatma kontrolü
+Exec=hp-victus-tools
+Icon=utilities-system-monitor
+Type=Application
+Categories=System;HardwareSettings;
+Keywords=fan;rpm;victus;hp;gaming;rgb;keyboard;
+StartupNotify=true

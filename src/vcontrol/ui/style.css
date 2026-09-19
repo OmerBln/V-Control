@@ -1,0 +1,207 @@
+
+
+@define-color accent-blue #4f9cf9;
+@define-color accent-cyan #00d4ff;
+@define-color accent-purple #9d7df0;
+@define-color accent-green #2dd4bf;
+@define-color accent-orange #fb923c;
+@define-color accent-red #f87171;
+
+@define-color card-bg alpha(currentColor, 0.05);
+@define-color card-bg-hover alpha(currentColor, 0.08);
+@define-color card-border alpha(currentColor, 0.15);
+
+.main-window {
+    background-color: @window_bg_color;
+}
+
+.dashboard-card {
+    background: @card-bg;
+    border: 1px solid @card-border;
+    border-radius: 16px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px alpha(black, 0.05);
+    transition: all 200ms ease;
+}
+.dashboard-card:hover {
+    background: @card-bg-hover;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px alpha(black, 0.1);
+}
+
+.dashboard-value {
+    font-size: 32px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+}
+
+.dashboard-unit {
+    font-size: 14px;
+    font-weight: 600;
+    color: alpha(currentColor, 0.6);
+    margin-left: 4px;
+}
+
+.dashboard-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: alpha(currentColor, 0.5);
+    margin-bottom: 8px;
+}
+
+.val-cpu { color: @accent-blue; }
+.val-gpu { color: @accent-purple; }
+.val-rpm { color: @accent-cyan; }
+
+.profile-card {
+    background: @card-bg;
+    border: 1px solid @card-border;
+    border-radius: 16px;
+    padding: 16px;
+    min-height: 100px;
+    transition: all 200ms ease;
+}
+
+.profile-card:hover {
+    background: @card-bg-hover;
+    border-color: @accent-blue;
+}
+
+.profile-card.active-profile {
+    background: alpha(@accent-blue, 0.15);
+    border-color: @accent-blue;
+    box-shadow: 0 0 16px alpha(@accent-blue, 0.2);
+}
+
+.profile-icon {
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+.profile-title {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.profile-desc {
+    font-size: 11px;
+    color: alpha(currentColor, 0.6);
+    margin-top: 4px;
+}
+
+.sidebar {
+    background-color: @view_bg_color;
+    border-right: 1px solid @card-border;
+    min-width: 200px;
+}
+
+.sidebar-logo {
+    padding: 24px 20px 16px 20px;
+    border-bottom: 1px solid @card-border;
+}
+
+.sidebar-logo-text {
+    font-size: 18px;
+    font-weight: 800;
+    color: @accent-blue;
+}
+
+.sidebar-logo-sub {
+    font-size: 11px;
+    color: alpha(currentColor, 0.6);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    color: alpha(currentColor, 0.7);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 16px;
+    transition: all 150ms ease;
+    margin: 2px 8px;
+}
+
+.nav-btn:hover {
+    background: @card-bg-hover;
+    color: currentColor;
+}
+
+.nav-btn.active {
+    background: alpha(@accent-blue, 0.15);
+    color: @accent-blue;
+}
+
+.premium-slider scale trough {
+    background: @card-border;
+    border-radius: 6px;
+    min-height: 8px;
+}
+
+.premium-slider scale trough highlight {
+    background: linear-gradient(90deg, @accent-blue, @accent-cyan);
+    border-radius: 6px;
+}
+
+.premium-slider scale slider {
+    background: white;
+    border-radius: 50%;
+    min-width: 22px;
+    min-height: 22px;
+    box-shadow: 0 2px 6px alpha(black, 0.3);
+    border: 2px solid @accent-blue;
+}
+
+.premium-slider scale slider:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px alpha(@accent-blue, 0.4);
+}
+
+.sidebar-category {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: alpha(currentColor, 0.4);
+    margin-bottom: 4px;
+}
+
+.top-tab-bar {
+    background: @view_bg_color;
+    border-bottom: 1px solid @card-border;
+    padding: 0 16px;
+}
+
+.top-tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    color: alpha(currentColor, 0.6);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 14px 20px;
+    transition: all 150ms ease;
+    margin: 0 4px;
+}
+
+.top-tab-btn:hover {
+    color: currentColor;
+    background: alpha(currentColor, 0.05);
+}
+
+.top-tab-btn.active {
+    color: @accent-blue;
+    border-bottom-color: @accent-blue;
+    background: transparent;
+}
+
+.victus-page {
+    background: @window_bg_color;
+}
