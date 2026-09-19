@@ -18,7 +18,6 @@ if _SRC_DIR not in sys.path:
 
 from vcontrol.backend.fan import get_controller as get_fan, FanStatus, PP_DISPLAY
 from vcontrol.backend.sensors import read_all as _read_all
-from vcontrol.backend.watchdog import get_watchdog
 
 UPDATE_INTERVAL_MS = 2000
 
@@ -47,8 +46,7 @@ class QuickOverlay(Gtk.ApplicationWindow):
         self._fan = get_fan()
         self._pp_buttons: dict[str, Gtk.Button] = {}
         self._update_timer: Optional[int] = None
-        self._watchdog: Optional[FanWatchdog] = None
-        self._setup_watchdog()
+        
 
         self.set_title("V-Control — Quick Layout")
         self.set_default_size(360, -1)
@@ -323,9 +321,7 @@ class QuickOverlay(Gtk.ApplicationWindow):
 
     def do_close_request(self) -> bool:
         self.stop_updates()
-        if self._watchdog:
-            self._watchdog.stop()
-        return False
+                return False
 
 def _read_all_safe() -> dict:
     try:

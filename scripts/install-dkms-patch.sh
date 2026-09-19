@@ -2,7 +2,7 @@
 set -e
 
 echo "============================================="
-echo " HP Victus Tools - Kernel WMI Yama Kurulumu"
+echo " V-Control - Kernel WMI Yama Kurulumu"
 echo "============================================="
 
 # Remove nbfc if installed

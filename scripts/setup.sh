@@ -30,7 +30,7 @@ echo "  ██╔══██║██╔═══╝      ╚██╗ ██�
 echo "  ██║  ██║██║           ╚████╔╝ ██║╚██████╗   ██║   ╚██████╔╝███████║"
 echo "  ╚═╝  ╚═╝╚═╝            ╚═══╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚══════╝"
 echo -e "${RESET}"
-echo -e "${BOLD}HP Victus Tools — Kurulum${RESET}"
+echo -e "${BOLD}V-Control — Kurulum${RESET}"
 echo "────────────────────────────────────────"
 
 cd "$PROJECT_DIR"

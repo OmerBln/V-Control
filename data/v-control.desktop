@@ -1,10 +1,11 @@
 [Desktop Entry]
-Name=HP Victus Tools
+Name=V-Control
 GenericName=Laptop Fan & RGB Controller
 Comment=HP Victus 16 fan hızı ve RGB klavye arka aydınlatma kontrolü
-Exec=hp-victus-tools
-Icon=utilities-system-monitor
+Exec=/home/omerb/Projects/V-Control/.venv/bin/v-control
+Icon=/home/omerb/Projects/V-Control/data/icons/v-control.png
 Type=Application
 Categories=System;HardwareSettings;
 Keywords=fan;rpm;victus;hp;gaming;rgb;keyboard;
 StartupNotify=true
+StartupWMClass=com.vcontrol.app

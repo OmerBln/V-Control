@@ -6,7 +6,6 @@ from gi.repository import Gtk, GLib, Adw
 
 logger = logging.getLogger(__name__)
 
-from vcontrol.backend.watchdog import get_watchdog
 from vcontrol.ui.pages.system_vitals import SystemVitalsPage
 from vcontrol.ui.pages.performance import FanPanel
 from vcontrol.ui.pages.lighting import LightingPage
@@ -19,9 +18,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.set_title("V-Control")
         self.set_default_size(1050, 700)
         
-        self._watchdog = get_watchdog()
-        self._watchdog.start()
-
+        
         self._build_ui()
 
     def _build_ui(self):
@@ -139,5 +136,4 @@ class MainWindow(Gtk.ApplicationWindow):
                 b.add_css_class("active")
 
     def do_close_request(self) -> bool:
-        self._watchdog.stop()
-        return False
+                return False

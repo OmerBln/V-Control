@@ -29,14 +29,21 @@ class ProfileManager:
     def __init__(self):
         self._profiles = {p.name: p for p in BUILTIN_PROFILES}
         self._active_name = "Balanced"
+        self._last_mtime = 0
         self._load()
 
     def _load(self):
         os.makedirs(CONFIG_DIR, exist_ok=True)
         if not os.path.exists(PROFILES_FILE):
             return
+        
         try:
-            with open(PROFILES_FILE) as f:
+            mtime = os.path.getmtime(PROFILES_FILE)
+            if mtime <= self._last_mtime:
+                return
+            self._last_mtime = mtime
+            
+            with open(PROFILES_FILE, encoding="utf-8") as f:
                 data = json.load(f)
             self._active_name = data.get("active", "Balanced")
             for p_data in data.get("profiles", []):
@@ -67,6 +74,7 @@ class ProfileManager:
 
     @property
     def active_profile(self) -> FanProfile:
+        self._load()
         return self._profiles.get(self._active_name, self._profiles["Balanced"])
 
     def set_active(self, name: str):

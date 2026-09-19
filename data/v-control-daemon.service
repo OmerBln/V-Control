@@ -1,0 +1,12 @@
+[Unit]
+Description=V-Control Fan & Thermal Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/home/omerb/Projects/V-Control/.venv/bin/v-control-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

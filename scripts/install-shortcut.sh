@@ -31,7 +31,7 @@ mkdir -p "$AUTOSTART_DIR"
 
 cat > "${HOME}/.local/share/applications/hp-victus-overlay.desktop" << DESKEOF
 [Desktop Entry]
-Name=HP Victus Quick Layout
+Name=V-Control Quick Layout
 Comment=HP Victus 16 Fan & RGB hızlı kontrol overlay
 Exec=$OVERLAY_BIN
 Icon=utilities-system-monitor

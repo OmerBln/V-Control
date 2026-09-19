@@ -29,6 +29,7 @@ dev = [
 [project.scripts]
 v-control = "vcontrol.main:main"
 v-control-overlay = "vcontrol.overlay:main"
+v-control-daemon = "vcontrol.daemon:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

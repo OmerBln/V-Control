@@ -38,6 +38,14 @@ class HPVictusApp(Gtk.Application):
         self._window = None
 
     def do_activate(self):
+        # Özel ikon dizinini ekle
+        from gi.repository import Gtk
+        icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "icons")
+        icon_theme.add_search_path(os.path.abspath(icon_path))
+        Gtk.Window.set_default_icon_name("v-control")
+
         if self._window is None:
             load_css()
             from vcontrol.ui.window import MainWindow

@@ -2,7 +2,7 @@
 set -e
 
 echo "============================================="
-echo " HP Victus Tools - NBFC Kurulum Betiği"
+echo " V-Control - NBFC Kurulum Betiği"
 echo "============================================="
 
 echo "[1/4] Gerekli paketler kuruluyor (yay üzerinden)..."
