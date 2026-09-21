@@ -11,14 +11,14 @@ from vcontrol.ui.pages.performance import FanPanel
 from vcontrol.ui.pages.lighting import LightingPage
 from vcontrol.ui.settings_panel import SettingsPanel
 
+
 class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, app: Gtk.Application):
         super().__init__(application=app)
         self.add_css_class("main-window")
         self.set_title("V-Control")
         self.set_default_size(1050, 700)
-        
-        
+
         self._build_ui()
 
     def _build_ui(self):
@@ -65,14 +65,14 @@ class MainWindow(Gtk.ApplicationWindow):
             sidebar.append(btn)
 
         add_item("home", "🏠", "HOME")
-        
+
         cat_lbl = Gtk.Label(label="VICTUS Laptop")
         cat_lbl.add_css_class("sidebar-category")
         cat_lbl.set_xalign(0)
         cat_lbl.set_margin_top(16)
         cat_lbl.set_margin_start(16)
         sidebar.append(cat_lbl)
-        
+
         add_item("victus", "💻", "Victus Cihazım")
         add_item("settings", "⚙️", "Ayarlar")
 
@@ -101,7 +101,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         tab_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         tab_bar.add_css_class("top-tab-bar")
-        
+
         self.victus_stack = Gtk.Stack()
         self.victus_stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
         self.victus_stack.set_vexpand(True)
@@ -119,7 +119,7 @@ class MainWindow(Gtk.ApplicationWindow):
         add_tab("vitals", "System Vitals", SystemVitalsPage())
         add_tab("lighting", "Lighting", LightingPage())
         add_tab("performance", "Performance Control", FanPanel())
-        
+
         self._tab_buttons["performance"].add_css_class("active")
         self.victus_stack.set_visible_child_name("performance")
 
@@ -136,4 +136,5 @@ class MainWindow(Gtk.ApplicationWindow):
                 b.add_css_class("active")
 
     def do_close_request(self) -> bool:
-                return False
+        # Return False to allow the window to close normally
+        return False

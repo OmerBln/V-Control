@@ -1,5 +1,3 @@
-
-
 import os
 import glob
 import time
@@ -13,13 +11,14 @@ logger = logging.getLogger(__name__)
 HWMON_BASE = "/sys/class/hwmon"
 HISTORY_SIZE = 150
 
+
 @dataclass
 class SensorReading:
-    
     cpu_temp: float = 0.0
     gpu_temp: float = 0.0
     nvme_temp: float = 0.0
     timestamp: float = field(default_factory=time.time)
+
 
 class SensorHistory:
 
@@ -38,8 +37,8 @@ class SensorHistory:
     def __len__(self) -> int:
         return len(self._data)
 
+
 def _find_hwmon_by_name(name: str) -> Optional[str]:
-    
     for path in glob.glob(f"{HWMON_BASE}/hwmon*"):
         name_file = os.path.join(path, "name")
         try:
@@ -50,16 +49,16 @@ def _find_hwmon_by_name(name: str) -> Optional[str]:
             continue
     return None
 
+
 def _read_millidegree(path: str) -> float:
-    
     try:
         with open(path) as f:
             return int(f.read().strip()) / 1000.0
     except (OSError, ValueError):
         return 0.0
 
+
 def read_cpu_temp() -> float:
-    
     hwmon = _find_hwmon_by_name("coretemp")
     if not hwmon:
         hwmon = _find_hwmon_by_name("acpitz")
@@ -82,40 +81,40 @@ def read_cpu_temp() -> float:
         return _read_millidegree(first[0])
     return 0.0
 
+
 def read_gpu_temp() -> float:
-    
-    for driver in ("nvidia", "amdgpu", "radeon"):
+    for driver in ("nvidia", "nouveau", "amdgpu", "radeon"):
         hwmon = _find_hwmon_by_name(driver)
         if hwmon:
             temp = _read_millidegree(os.path.join(hwmon, "temp1_input"))
             if temp > 0:
                 return temp
-
-    hwmon = _find_hwmon_by_name("iwlwifi_1")
     return 0.0
 
+
 def read_nvme_temp() -> float:
-    
     hwmon = _find_hwmon_by_name("nvme")
     if not hwmon:
         return 0.0
     return _read_millidegree(os.path.join(hwmon, "temp1_input"))
 
+
 def read_all() -> SensorReading:
-    
     return SensorReading(
         cpu_temp=read_cpu_temp(),
         gpu_temp=read_gpu_temp(),
         nvme_temp=read_nvme_temp(),
     )
 
+
 _history = SensorHistory()
+
 
 def get_history() -> SensorHistory:
     return _history
 
+
 def update_history() -> SensorReading:
-    
     reading = read_all()
     _history.append(reading)
     return reading

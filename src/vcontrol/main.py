@@ -1,5 +1,3 @@
-
-
 import logging
 import os
 import sys
@@ -16,11 +14,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 def load_css():
-    
     css_path = os.path.join(os.path.dirname(__file__), "ui", "style.css")
     if not os.path.exists(css_path):
-        logger.warning(f"CSS dosyası bulunamadı: {css_path}")
+        logger.warning(f"CSS file not found: {css_path}")
         return
     provider = Gtk.CssProvider()
     provider.load_from_path(css_path)
@@ -29,7 +27,8 @@ def load_css():
         provider,
         Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
     )
-    logger.info("CSS yüklendi.")
+    logger.info("CSS loaded.")
+
 
 class HPVictusApp(Gtk.Application):
 
@@ -38,10 +37,7 @@ class HPVictusApp(Gtk.Application):
         self._window = None
 
     def do_activate(self):
-        # Özel ikon dizinini ekle
-        from gi.repository import Gtk
         icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
-        import os
         icon_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "icons")
         icon_theme.add_search_path(os.path.abspath(icon_path))
         Gtk.Window.set_default_icon_name("v-control")
@@ -54,13 +50,14 @@ class HPVictusApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
-        logger.info("V-Control başlatılıyor...")
+        logger.info("V-Control starting...")
+
 
 def main():
-    
     app = HPVictusApp()
     exit_code = app.run(sys.argv)
     sys.exit(exit_code)
+
 
 if __name__ == "__main__":
     main()
