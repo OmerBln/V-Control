@@ -9,6 +9,14 @@ from vcontrol.backend.fan_curves import get_target_pwm
 logger = logging.getLogger(__name__)
 WATCHDOG_INTERVAL_S = 2
 
+# Maximum allowed single-sample jump vs. recent median before treating as spike
+SPIKE_THRESHOLD_C = 20
+
+# Hardware protection: ramp to 100% above this temperature (°C)
+OVERHEAT_TEMP = 70
+# Don't drop out of overheat protection until temperature falls below this
+OVERHEAT_RELEASE_TEMP = 65
+
 
 class FanWatchdog:
     def __init__(self):
@@ -24,14 +32,14 @@ class FanWatchdog:
         # Spin-up: target must be stable for SPINUP_TICKS ticks before applying
         self._pending_up_speed = -1
         self._pending_up_count = 0
-        SPINUP_TICKS = 2   # 2 ticks × 2 s = 4 s confirmation window
+        self._SPINUP_TICKS = 2   # 2 ticks × 2 s = 4 s confirmation window
 
         # Spin-down: hold current speed for HOLD_TICKS ticks after a rise
         self._hold_down_ticks = 0
-        HOLD_TICKS = 4     # 4 ticks × 2 s = 8 s hold period
+        self._HOLD_TICKS = 4     # 4 ticks × 2 s = 8 s hold period
 
-        self._SPINUP_TICKS = SPINUP_TICKS
-        self._HOLD_TICKS = HOLD_TICKS
+        # Track overheat state with hysteresis to avoid rapid toggling
+        self._in_overheat = False
 
     @property
     def is_running(self) -> bool:
@@ -83,6 +91,34 @@ class FanWatchdog:
         self._pending_up_count = 0
         self._hold_down_ticks = 0
         self._temp_history.clear()
+        self._in_overheat = False
+
+    def _add_temp_sample(self, raw_temp: int) -> int:
+        """
+        Add a temperature sample with upward spike rejection.
+
+        Only upward jumps larger than SPIKE_THRESHOLD_C from the recent
+        median are treated as sensor glitches and discarded.  Genuine
+        cooling (downward changes) is always accepted so the filter does
+        not delay fan spin-down when load truly stops.
+        Returns the filtered (median) temperature.
+        """
+        # Need at least 2 previous samples to detect spikes reliably
+        if len(self._temp_history) >= 2:
+            recent = list(self._temp_history)[-3:]
+            recent_median = statistics.median(recent)
+            upward_jump = raw_temp - recent_median  # positive = hotter
+            if upward_jump > SPIKE_THRESHOLD_C:
+                logger.warning(
+                    f"Sensor spike rejected: {raw_temp}°C "
+                    f"(recent median {recent_median:.0f}°C, "
+                    f"+{upward_jump:.0f}°C upward jump)"
+                )
+                # Do not add to history; return current median unchanged
+                return int(round(statistics.median(self._temp_history)))
+
+        self._temp_history.append(raw_temp)
+        return int(round(statistics.median(self._temp_history)))
 
     def _apply_logic(self):
         if not self._fan.available:
@@ -110,10 +146,11 @@ class FanWatchdog:
             gpu_temp = temps.get("gpu", 0)
             raw_temp = max(cpu_temp, gpu_temp)
 
-            # 1. Median filter (5-sample sliding window):
-            #    Eliminates single-sample sensor spikes (e.g. 95 °C blip on 50 °C baseline)
-            self._temp_history.append(raw_temp)
-            filtered_temp = int(round(statistics.median(self._temp_history)))
+            # Two-stage filtering:
+            # Stage 1 — spike rejection: discard samples that jump >SPIKE_THRESHOLD_C
+            #           from the recent median (sensor glitches, DTS bursts, etc.)
+            # Stage 2 — median of the clean 5-sample window for smoothing
+            filtered_temp = self._add_temp_sample(raw_temp)
 
             # 2. Determine target from curve (using filtered temperature)
             curve_target = get_target_pwm(
@@ -123,9 +160,26 @@ class FanWatchdog:
                 hysteresis=hysteresis,
             )
 
-            # 3. Hardware protection: bypass all delays at critical temperature
-            if filtered_temp >= 70:
-                curve_target = 100
+            # 3. Hardware protection with hysteresis to avoid rapid 100% toggling:
+            #    - Enter overheat mode when filtered temp >= OVERHEAT_TEMP
+            #    - Exit overheat mode only when filtered temp <= OVERHEAT_RELEASE_TEMP
+            if self._in_overheat:
+                if filtered_temp <= OVERHEAT_RELEASE_TEMP:
+                    self._in_overheat = False
+                    logger.info(
+                        f"Overheat protection released at {filtered_temp}°C "
+                        f"(<= {OVERHEAT_RELEASE_TEMP}°C threshold)."
+                    )
+                else:
+                    curve_target = 100
+            else:
+                if filtered_temp >= OVERHEAT_TEMP:
+                    self._in_overheat = True
+                    curve_target = 100
+                    logger.warning(
+                        f"Overheat protection engaged at {filtered_temp}°C "
+                        f"(>= {OVERHEAT_TEMP}°C threshold)."
+                    )
 
             # ---- First-run: apply immediately ----
             if self._last_speed == -1:
@@ -178,7 +232,7 @@ class FanWatchdog:
                 if is_manual:
                     logger.info(f"Fan speed set MANUAL to {target_speed}%.")
                 else:
-                    crit_flag = " [OVERHEAT PROTECTION 100%]" if filtered_temp >= 70 else ""
+                    crit_flag = " [OVERHEAT PROTECTION 100%]" if self._in_overheat else ""
                     logger.info(
                         f"Fan speed -> {target_speed}% "
                         f"(raw: {raw_temp}°C [CPU:{cpu_temp}°C GPU:{gpu_temp}°C], "
