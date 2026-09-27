@@ -28,6 +28,7 @@ class QuickOverlay(Gtk.Window):
         self._fan = get_controller()
         self._profiles = get_manager()
         self._update_timer = None
+        self._updating = False
         
         self._build_ui()
         
@@ -191,27 +192,33 @@ class QuickOverlay(Gtk.Window):
         self._refresh_fan_ui()
 
     def _on_manual_toggled(self, switch, state):
+        if self._updating:
+            return False
         self.slider.set_sensitive(state)
         p = self._profiles.active_profile
         self._profiles.update_manual(p.name, state, int(self.slider.get_value()))
         return False
 
     def _on_slider_changed(self, slider):
+        if self._updating:
+            return
         val = int(slider.get_value())
         p = self._profiles.active_profile
         self._profiles.update_manual(p.name, self.manual_switch.get_active(), val)
 
     def _refresh_fan_ui(self):
+        self._updating = True
         p = self._profiles.active_profile
         for name, btn in self.mode_buttons.items():
             if name == p.name:
                 btn.add_css_class("active-mode")
             else:
                 btn.remove_css_class("active-mode")
-                
-        self.manual_switch.set_active(p.is_manual)
+
         self.slider.set_value(p.manual_speed)
+        self.manual_switch.set_active(p.is_manual)
         self.slider.set_sensitive(p.is_manual)
+        self._updating = False
 
     def _on_key_pressed(self, ctrl, keyval, keycode, state):
         if keyval == Gdk.KEY_Escape:

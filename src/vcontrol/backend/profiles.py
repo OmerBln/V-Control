@@ -98,7 +98,7 @@ class ProfileManager:
     def update_manual(self, name: str, is_manual: bool, speed: int):
         if name in self._profiles:
             self._profiles[name].is_manual = is_manual
-            self._profiles[name].manual_speed = speed
+            self._profiles[name].manual_speed = max(20, min(100, int(speed)))
             self.save()
 
     def update_hysteresis(self, name: str, hysteresis: int):

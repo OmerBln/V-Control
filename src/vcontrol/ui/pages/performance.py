@@ -27,6 +27,7 @@ class FanPanel(Gtk.ScrolledWindow):
         self._current_profile = self.profiles.active_profile.name
         self._last_cpu = 0
         self._last_gpu = 0
+        self._updating = False
 
         clamp = Adw.Clamp()
         clamp.set_maximum_size(640)
@@ -214,19 +215,25 @@ class FanPanel(Gtk.ScrolledWindow):
         self._refresh_ui()
 
     def _refresh_ui(self):
+        self._updating = True
         p = self.profiles.active_profile
-        self.manual_switch.set_active(p.is_manual)
         self.slider.set_value(p.manual_speed)
+        self.manual_switch.set_active(p.is_manual)
         self.slider.set_sensitive(p.is_manual)
         self._speed_val.set_label(str(int(p.manual_speed)))
+        self._updating = False
 
     def _on_switch_toggled(self, switch, state):
+        if self._updating:
+            return False
         self.slider.set_sensitive(state)
         p = self.profiles.active_profile
         self.profiles.update_manual(p.name, state, int(self.slider.get_value()))
         return False
 
     def _on_slider_changed(self, slider):
+        if self._updating:
+            return
         val = int(slider.get_value())
         self._speed_val.set_label(str(val))
         p = self.profiles.active_profile
