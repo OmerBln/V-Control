@@ -21,7 +21,6 @@ class SensorReading:
 
 
 class SensorHistory:
-
     def __init__(self, maxlen: int = HISTORY_SIZE):
         self._data: deque[SensorReading] = deque(maxlen=maxlen)
 
@@ -40,9 +39,8 @@ class SensorHistory:
 
 def _find_hwmon_by_name(name: str) -> Optional[str]:
     for path in glob.glob(f"{HWMON_BASE}/hwmon*"):
-        name_file = os.path.join(path, "name")
         try:
-            with open(name_file) as f:
+            with open(os.path.join(path, "name")) as f:
                 if f.read().strip() == name:
                     return path
         except OSError:
@@ -71,8 +69,7 @@ def read_cpu_temp() -> float:
             with open(label_file) as f:
                 label = f.read().strip()
             if "Package" in label or "Tdie" in label:
-                input_file = label_file.replace("_label", "_input")
-                return _read_millidegree(input_file)
+                return _read_millidegree(label_file.replace("_label", "_input"))
         except OSError:
             continue
 

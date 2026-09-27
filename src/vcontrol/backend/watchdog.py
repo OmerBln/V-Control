@@ -7,14 +7,10 @@ from vcontrol.backend.profiles import get_manager
 from vcontrol.backend.fan_curves import get_target_pwm
 
 logger = logging.getLogger(__name__)
+
 WATCHDOG_INTERVAL_S = 2
-
-# Maximum allowed single-sample jump vs. recent median before treating as spike
 SPIKE_THRESHOLD_C = 20
-
-# Hardware protection: ramp to 100% above this temperature (°C)
 OVERHEAT_TEMP = 70
-# Don't drop out of overheat protection until temperature falls below this
 OVERHEAT_RELEASE_TEMP = 65
 
 
@@ -28,17 +24,11 @@ class FanWatchdog:
         self._last_mode = None
         self._last_is_manual = None
         self._temp_history: deque[int] = deque(maxlen=5)
-
-        # Spin-up: target must be stable for SPINUP_TICKS ticks before applying
         self._pending_up_speed = -1
         self._pending_up_count = 0
-        self._SPINUP_TICKS = 2   # 2 ticks × 2 s = 4 s confirmation window
-
-        # Spin-down: hold current speed for HOLD_TICKS ticks after a rise
+        self._SPINUP_TICKS = 2
         self._hold_down_ticks = 0
-        self._HOLD_TICKS = 4     # 4 ticks × 2 s = 8 s hold period
-
-        # Track overheat state with hysteresis to avoid rapid toggling
+        self._HOLD_TICKS = 4
         self._in_overheat = False
 
     @property
@@ -85,7 +75,6 @@ class FanWatchdog:
             self._schedule()
 
     def _reset_state(self):
-        """Reset all transient state when profile or mode changes."""
         self._last_speed = -1
         self._pending_up_speed = -1
         self._pending_up_count = 0
@@ -94,27 +83,14 @@ class FanWatchdog:
         self._in_overheat = False
 
     def _add_temp_sample(self, raw_temp: int) -> int:
-        """
-        Add a temperature sample with upward spike rejection.
-
-        Only upward jumps larger than SPIKE_THRESHOLD_C from the recent
-        median are treated as sensor glitches and discarded.  Genuine
-        cooling (downward changes) is always accepted so the filter does
-        not delay fan spin-down when load truly stops.
-        Returns the filtered (median) temperature.
-        """
-        # Need at least 2 previous samples to detect spikes reliably
         if len(self._temp_history) >= 2:
-            recent = list(self._temp_history)[-3:]
-            recent_median = statistics.median(recent)
-            upward_jump = raw_temp - recent_median  # positive = hotter
+            recent_median = statistics.median(list(self._temp_history)[-3:])
+            upward_jump = raw_temp - recent_median
             if upward_jump > SPIKE_THRESHOLD_C:
                 logger.warning(
                     f"Sensor spike rejected: {raw_temp}°C "
-                    f"(recent median {recent_median:.0f}°C, "
-                    f"+{upward_jump:.0f}°C upward jump)"
+                    f"(median {recent_median:.0f}°C, +{upward_jump:.0f}°C)"
                 )
-                # Do not add to history; return current median unchanged
                 return int(round(statistics.median(self._temp_history)))
 
         self._temp_history.append(raw_temp)
@@ -131,7 +107,6 @@ class FanWatchdog:
         manual_speed = active_prof.manual_speed
         hysteresis = getattr(active_prof, "hysteresis", 4)
 
-        # Reset all state when profile or control mode changes
         if mode_name != self._last_mode or is_manual != self._last_is_manual:
             self._reset_state()
             self._last_mode = mode_name
@@ -145,14 +120,8 @@ class FanWatchdog:
             cpu_temp = temps.get("cpu", 0)
             gpu_temp = temps.get("gpu", 0)
             raw_temp = max(cpu_temp, gpu_temp)
-
-            # Two-stage filtering:
-            # Stage 1 — spike rejection: discard samples that jump >SPIKE_THRESHOLD_C
-            #           from the recent median (sensor glitches, DTS bursts, etc.)
-            # Stage 2 — median of the clean 5-sample window for smoothing
             filtered_temp = self._add_temp_sample(raw_temp)
 
-            # 2. Determine target from curve (using filtered temperature)
             curve_target = get_target_pwm(
                 filtered_temp,
                 mode_name,
@@ -160,55 +129,35 @@ class FanWatchdog:
                 hysteresis=hysteresis,
             )
 
-            # 3. Hardware protection with hysteresis to avoid rapid 100% toggling:
-            #    - Enter overheat mode when filtered temp >= OVERHEAT_TEMP
-            #    - Exit overheat mode only when filtered temp <= OVERHEAT_RELEASE_TEMP
             if self._in_overheat:
                 if filtered_temp <= OVERHEAT_RELEASE_TEMP:
                     self._in_overheat = False
-                    logger.info(
-                        f"Overheat protection released at {filtered_temp}°C "
-                        f"(<= {OVERHEAT_RELEASE_TEMP}°C threshold)."
-                    )
+                    logger.info(f"Overheat protection released at {filtered_temp}°C.")
                 else:
                     curve_target = 100
-            else:
-                if filtered_temp >= OVERHEAT_TEMP:
-                    self._in_overheat = True
-                    curve_target = 100
-                    logger.warning(
-                        f"Overheat protection engaged at {filtered_temp}°C "
-                        f"(>= {OVERHEAT_TEMP}°C threshold)."
-                    )
+            elif filtered_temp >= OVERHEAT_TEMP:
+                self._in_overheat = True
+                curve_target = 100
+                logger.warning(f"Overheat protection engaged at {filtered_temp}°C.")
 
-            # ---- First-run: apply immediately ----
             if self._last_speed == -1:
                 target_speed = curve_target
                 self._pending_up_speed = -1
                 self._pending_up_count = 0
-
-            # ---- Speed increase: require SPINUP_TICKS consecutive confirmations ----
             elif curve_target > self._last_speed:
                 if curve_target > self._pending_up_speed:
-                    # New higher target — restart confirmation counter
-                    # (use > instead of != so oscillation between two targets
-                    #  does NOT reset the counter when the higher one reappears)
                     self._pending_up_speed = curve_target
                     self._pending_up_count = 1
                     target_speed = self._last_speed
                 else:
-                    # Same pending target seen again — increment counter
                     self._pending_up_count += 1
                     if self._pending_up_count < self._SPINUP_TICKS:
                         target_speed = self._last_speed
                     else:
-                        # Confirmed — apply new speed and start hold timer
                         target_speed = curve_target
                         self._hold_down_ticks = self._HOLD_TICKS
                         self._pending_up_speed = -1
                         self._pending_up_count = 0
-
-            # ---- Speed decrease: hold for HOLD_TICKS after last spin-up ----
             elif curve_target < self._last_speed:
                 self._pending_up_speed = -1
                 self._pending_up_count = 0
@@ -217,8 +166,6 @@ class FanWatchdog:
                     target_speed = self._last_speed
                 else:
                     target_speed = curve_target
-
-            # ---- Speed unchanged ----
             else:
                 self._pending_up_speed = -1
                 self._pending_up_count = 0
@@ -232,12 +179,11 @@ class FanWatchdog:
                 if is_manual:
                     logger.info(f"Fan speed set MANUAL to {target_speed}%.")
                 else:
-                    crit_flag = " [OVERHEAT PROTECTION 100%]" if self._in_overheat else ""
+                    crit_flag = " [OVERHEAT]" if self._in_overheat else ""
                     logger.info(
                         f"Fan speed -> {target_speed}% "
                         f"(raw: {raw_temp}°C [CPU:{cpu_temp}°C GPU:{gpu_temp}°C], "
-                        f"filtered: {filtered_temp}°C | mode: {mode_name} | "
-                        f"hysteresis: {hysteresis}°C){crit_flag}"
+                        f"filtered: {filtered_temp}°C | mode: {mode_name}){crit_flag}"
                     )
                 self._last_speed = target_speed
             else:

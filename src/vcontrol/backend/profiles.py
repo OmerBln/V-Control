@@ -9,8 +9,6 @@ logger = logging.getLogger(__name__)
 
 CONFIG_DIR = os.path.expanduser("~/.config/v-control")
 PROFILES_FILE = os.path.join(CONFIG_DIR, "profiles.json")
-
-# Minimum interval between disk re-reads (seconds)
 _LOAD_INTERVAL_S = 5.0
 
 
@@ -44,7 +42,6 @@ class ProfileManager:
         if not os.path.exists(PROFILES_FILE):
             return
 
-        # Rate-limit disk access: only re-check after _LOAD_INTERVAL_S seconds
         now = time.monotonic()
         if now - self._last_load_time < _LOAD_INTERVAL_S:
             return
@@ -77,7 +74,6 @@ class ProfileManager:
         try:
             with open(PROFILES_FILE, "w") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            # Update mtime cache so we don't re-read what we just wrote
             self._last_mtime = os.path.getmtime(PROFILES_FILE)
             self._last_load_time = time.monotonic()
         except Exception as e:
