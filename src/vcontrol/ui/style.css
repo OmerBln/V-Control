@@ -1,130 +1,67 @@
-
-
-@define-color accent-blue #4f9cf9;
-@define-color accent-cyan #00d4ff;
+/* ── Color tokens ─────────────────────────────────────────── */
+@define-color accent-blue   #4f9cf9;
+@define-color accent-cyan   #00d4ff;
 @define-color accent-purple #9d7df0;
-@define-color accent-green #2dd4bf;
+@define-color accent-green  #2dd4bf;
 @define-color accent-orange #fb923c;
-@define-color accent-red #f87171;
+@define-color accent-red    #f87171;
+@define-color accent-yellow #facc15;
 
-@define-color card-bg alpha(currentColor, 0.05);
+@define-color card-bg       alpha(currentColor, 0.05);
 @define-color card-bg-hover alpha(currentColor, 0.08);
-@define-color card-border alpha(currentColor, 0.15);
+@define-color card-border   alpha(currentColor, 0.12);
 
+/* ── Window ───────────────────────────────────────────────── */
 .main-window {
     background-color: @window_bg_color;
 }
 
-.dashboard-card {
-    background: @card-bg;
-    border: 1px solid @card-border;
-    border-radius: 16px;
-    padding: 16px 20px;
-    box-shadow: 0 4px 12px alpha(black, 0.05);
-    transition: all 200ms ease;
-}
-.dashboard-card:hover {
-    background: @card-bg-hover;
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px alpha(black, 0.1);
-}
-
-.dashboard-value {
-    font-size: 32px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-}
-
-.dashboard-unit {
-    font-size: 14px;
-    font-weight: 600;
-    color: alpha(currentColor, 0.6);
-    margin-left: 4px;
-}
-
-.dashboard-title {
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: alpha(currentColor, 0.5);
-    margin-bottom: 8px;
-}
-
-.val-cpu { color: @accent-blue; }
-.val-gpu { color: @accent-purple; }
-.val-rpm { color: @accent-cyan; }
-
-.profile-card {
-    background: @card-bg;
-    border: 1px solid @card-border;
-    border-radius: 16px;
-    padding: 16px;
-    min-height: 100px;
-    transition: all 200ms ease;
-}
-
-.profile-card:hover {
-    background: @card-bg-hover;
-    border-color: @accent-blue;
-}
-
-.profile-card.active-profile {
-    background: alpha(@accent-blue, 0.15);
-    border-color: @accent-blue;
-    box-shadow: 0 0 16px alpha(@accent-blue, 0.2);
-}
-
-.profile-icon {
-    font-size: 24px;
-    margin-bottom: 8px;
-}
-
-.profile-title {
-    font-size: 15px;
-    font-weight: 700;
-}
-
-.profile-desc {
-    font-size: 11px;
-    color: alpha(currentColor, 0.6);
-    margin-top: 4px;
-}
-
+/* ── Sidebar ──────────────────────────────────────────────── */
 .sidebar {
     background-color: @view_bg_color;
     border-right: 1px solid @card-border;
-    min-width: 200px;
+    min-width: 210px;
 }
 
 .sidebar-logo {
-    padding: 24px 20px 16px 20px;
+    padding: 24px 20px 20px 20px;
     border-bottom: 1px solid @card-border;
 }
 
-.sidebar-logo-text {
-    font-size: 18px;
-    font-weight: 800;
+.sidebar-logo-title {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
     color: @accent-blue;
 }
 
 .sidebar-logo-sub {
-    font-size: 11px;
-    color: alpha(currentColor, 0.6);
-    letter-spacing: 0.1em;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
+    color: alpha(currentColor, 0.45);
+    margin-top: 2px;
+}
+
+.sidebar-category {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: alpha(currentColor, 0.35);
+    margin: 4px 0;
 }
 
 .nav-btn {
     background: transparent;
     border: none;
     border-radius: 10px;
-    color: alpha(currentColor, 0.7);
-    font-size: 14px;
+    color: alpha(currentColor, 0.65);
+    font-size: 13px;
     font-weight: 600;
-    padding: 12px 16px;
-    transition: all 150ms ease;
+    padding: 11px 16px;
+    transition: background 150ms ease, color 150ms ease;
     margin: 2px 8px;
 }
 
@@ -138,6 +75,137 @@
     color: @accent-blue;
 }
 
+/* ── Tab bar ──────────────────────────────────────────────── */
+.top-tab-bar {
+    background: @view_bg_color;
+    border-bottom: 1px solid @card-border;
+    padding: 0 16px;
+}
+
+.top-tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: alpha(currentColor, 0.55);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 14px 20px;
+    transition: color 150ms ease, border-color 150ms ease, background 150ms ease;
+    margin: 0 2px;
+}
+
+.top-tab-btn:hover {
+    color: currentColor;
+    background: alpha(currentColor, 0.04);
+}
+
+.top-tab-btn.active {
+    color: @accent-blue;
+    border-bottom-color: @accent-blue;
+    background: transparent;
+}
+
+/* ── Dashboard cards ──────────────────────────────────────── */
+.dashboard-card {
+    background: @card-bg;
+    border: 1px solid @card-border;
+    border-radius: 16px;
+    padding: 18px 20px;
+    transition: background 180ms ease, box-shadow 180ms ease;
+}
+
+.dashboard-card:hover {
+    background: @card-bg-hover;
+    box-shadow: 0 4px 16px alpha(black, 0.08);
+}
+
+.dashboard-card-icon {
+    font-size: 22px;
+    margin-bottom: 8px;
+}
+
+.dashboard-value {
+    font-size: 34px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+}
+
+.dashboard-unit {
+    font-size: 13px;
+    font-weight: 600;
+    color: alpha(currentColor, 0.55);
+    margin-left: 3px;
+    margin-bottom: 4px;
+}
+
+.dashboard-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: alpha(currentColor, 0.45);
+    margin-bottom: 6px;
+}
+
+/* temperature-based colour classes, set dynamically */
+.val-cpu      { color: @accent-blue; }
+.val-gpu      { color: @accent-purple; }
+.val-rpm      { color: @accent-cyan; }
+.temp-cool    { color: @accent-blue; }
+.temp-warm    { color: @accent-yellow; }
+.temp-hot     { color: @accent-orange; }
+.temp-critical{ color: @accent-red; }
+
+/* ── Profile cards ────────────────────────────────────────── */
+.profile-card {
+    background: @card-bg;
+    border: 1.5px solid @card-border;
+    border-radius: 18px;
+    padding: 20px 16px;
+    min-height: 110px;
+    transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.profile-card:hover {
+    background: @card-bg-hover;
+    border-color: alpha(@accent-blue, 0.4);
+}
+
+.profile-card.active-profile {
+    background: alpha(@accent-blue, 0.1);
+    border-color: @accent-blue;
+    box-shadow: 0 0 0 1px @accent-blue, 0 4px 20px alpha(@accent-blue, 0.2);
+}
+
+.profile-icon {
+    font-size: 26px;
+    margin-bottom: 10px;
+}
+
+.profile-title {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.profile-desc {
+    font-size: 11px;
+    color: alpha(currentColor, 0.5);
+    margin-top: 4px;
+}
+
+.profile-badge {
+    font-size: 10px;
+    font-weight: 700;
+    background: @accent-blue;
+    color: white;
+    border-radius: 6px;
+    padding: 2px 8px;
+    margin-top: 8px;
+}
+
+/* ── Manual fan slider ────────────────────────────────────── */
 .premium-slider scale trough {
     background: @card-border;
     border-radius: 6px;
@@ -156,145 +224,151 @@
     min-height: 22px;
     box-shadow: 0 2px 6px alpha(black, 0.3);
     border: 2px solid @accent-blue;
+    transition: box-shadow 150ms ease;
 }
 
 .premium-slider scale slider:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 12px alpha(@accent-blue, 0.4);
+    box-shadow: 0 0 0 4px alpha(@accent-blue, 0.25), 0 2px 8px alpha(black, 0.3);
 }
 
-.sidebar-category {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: alpha(currentColor, 0.4);
-    margin-bottom: 4px;
+.speed-readout {
+    font-size: 28px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: @accent-cyan;
+    letter-spacing: -0.02em;
 }
 
-.top-tab-bar {
-    background: @view_bg_color;
-    border-bottom: 1px solid @card-border;
-    padding: 0 16px;
-}
-
-.top-tab-btn {
-    background: transparent;
-    border: none;
-    border-bottom: 3px solid transparent;
-    border-radius: 0;
-    color: alpha(currentColor, 0.6);
+.speed-readout-unit {
     font-size: 13px;
     font-weight: 600;
-    padding: 14px 20px;
-    transition: all 150ms ease;
-    margin: 0 4px;
+    color: alpha(currentColor, 0.5);
+    margin-left: 4px;
 }
 
-.top-tab-btn:hover {
-    color: currentColor;
-    background: alpha(currentColor, 0.05);
+/* ── Vitals page ──────────────────────────────────────────── */
+.vitals-graph-card {
+    background: @card-bg;
+    border: 1px solid @card-border;
+    border-radius: 16px;
+    padding: 20px;
 }
 
-.top-tab-btn.active {
-    color: @accent-blue;
-    border-bottom-color: @accent-blue;
-    background: transparent;
+.vitals-graph-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: alpha(currentColor, 0.45);
+    margin-bottom: 12px;
 }
 
-.victus-page {
-    background: @window_bg_color;
-}
-
-/* OMEN OVERLAY STYLES */
+/* ── OMEN Overlay ─────────────────────────────────────────── */
 .omen-overlay-window {
     background-color: transparent;
 }
 
 .omen-sidebar {
-    background-color: rgba(20, 20, 20, 0.95);
-    border-radius: 12px;
+    background-color: rgba(18, 18, 20, 0.96);
+    border-radius: 14px;
     padding: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
 .omen-sidebar-btn {
     background-color: transparent;
-    color: white;
+    color: rgba(255,255,255,0.7);
     font-size: 20px;
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 12px;
     border: 1px solid transparent;
+    transition: background 150ms ease, color 150ms ease;
 }
 
 .omen-sidebar-btn:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255,255,255,0.08);
+    color: white;
 }
 
-.omen-sidebar-btn:checked, .omen-sidebar-btn.active {
-    background-color: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+.omen-sidebar-btn:checked {
+    background-color: rgba(79,156,249,0.2);
+    border-color: rgba(79,156,249,0.4);
+    color: #4f9cf9;
 }
 
 .omen-popout {
-    background-color: rgba(30, 30, 30, 0.95);
-    border-radius: 12px;
-    padding: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background-color: rgba(22, 22, 26, 0.97);
+    border-radius: 14px;
+    padding: 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
 .omen-card {
-    background-color: rgba(50, 50, 50, 0.5);
-    border-radius: 8px;
-    padding: 12px;
+    background-color: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 14px;
 }
 
 .omen-card-title {
-    font-size: 13px;
-    font-weight: bold;
-    color: #cccccc;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 4px;
 }
 
 .omen-card-value {
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 800;
+    font-variant-numeric: tabular-nums;
     color: white;
+    letter-spacing: -0.02em;
 }
 
 .omen-card-unit {
     font-size: 12px;
-    color: #aaaaaa;
-    margin-left: 4px;
+    color: rgba(255,255,255,0.4);
+    margin-left: 3px;
 }
 
 .omen-mode-btn {
-    background-color: rgba(50, 50, 50, 0.8);
-    color: white;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-size: 13px;
-    font-weight: bold;
-    border: 1px solid transparent;
+    background-color: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.7);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.1);
+    transition: background 150ms ease, border-color 150ms ease;
 }
 
 .omen-mode-btn:hover {
-    background-color: rgba(70, 70, 70, 0.9);
+    background-color: rgba(255,255,255,0.1);
+    color: white;
 }
 
 .omen-mode-btn.active-mode {
-    background-color: white;
-    color: black;
-    border: 1px solid white;
+    background-color: rgba(79,156,249,0.25);
+    color: #4f9cf9;
+    border-color: rgba(79,156,249,0.5);
 }
 
 .omen-slider trough {
-    background-color: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.15);
     border-radius: 4px;
 }
-.omen-slider highlight {
-    background-color: white;
+
+.omen-slider trough highlight {
+    background: linear-gradient(90deg, #4f9cf9, #00d4ff);
+    border-radius: 4px;
 }
+
 .omen-slider slider {
-    background-color: white;
-    border: 2px solid #333;
+    background: white;
+    border-radius: 50%;
+    border: 2px solid #4f9cf9;
 }

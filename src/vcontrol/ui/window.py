@@ -18,7 +18,6 @@ class MainWindow(Gtk.ApplicationWindow):
         self.add_css_class("main-window")
         self.set_title("V-Control")
         self.set_default_size(1050, 700)
-
         self._build_ui()
 
     def _build_ui(self):
@@ -30,7 +29,6 @@ class MainWindow(Gtk.ApplicationWindow):
         self.main_stack.set_hexpand(True)
         self.main_stack.set_vexpand(True)
 
-        self.main_stack.add_named(self._build_home_page(), "home")
         self.main_stack.add_named(self._build_victus_page(), "victus")
         self.main_stack.add_named(SettingsPanel(), "settings")
 
@@ -38,62 +36,69 @@ class MainWindow(Gtk.ApplicationWindow):
         root.append(self.main_stack)
 
     def _build_sidebar(self) -> Gtk.Widget:
-        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         sidebar.add_css_class("sidebar")
 
-        logo_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        # Logo
+        logo_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         logo_box.add_css_class("sidebar-logo")
-        img = Gtk.Image.new_from_icon_name("computer-symbolic")
-        img.set_pixel_size(24)
-        lbl = Gtk.Label(label="OMEN Gaming Hub\n(Victus Edition)")
-        lbl.add_css_class("sidebar-logo-text")
-        logo_box.append(img)
-        logo_box.append(lbl)
+
+        title = Gtk.Label(label="V-Control")
+        title.add_css_class("sidebar-logo-title")
+        title.set_xalign(0)
+
+        sub = Gtk.Label(label="HP Victus Edition")
+        sub.add_css_class("sidebar-logo-sub")
+        sub.set_xalign(0)
+
+        logo_box.append(title)
+        logo_box.append(sub)
         sidebar.append(logo_box)
+
+        # Nav
+        nav_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        nav_box.set_margin_top(12)
+        nav_box.set_margin_bottom(12)
 
         self._nav_buttons = {}
 
-        def add_item(id_name, icon, label, css_class="nav-btn"):
+        def add_nav(page_id, icon, label):
             btn = Gtk.Button()
-            box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-            box.append(Gtk.Label(label=icon))
-            box.append(Gtk.Label(label=label))
-            btn.set_child(box)
-            btn.add_css_class(css_class)
-            btn.connect("clicked", self._on_sidebar_nav, id_name)
-            self._nav_buttons[id_name] = btn
-            sidebar.append(btn)
+            inner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            inner.set_margin_start(4)
+            inner.append(Gtk.Label(label=icon))
+            inner.append(Gtk.Label(label=label))
+            btn.set_child(inner)
+            btn.add_css_class("nav-btn")
+            btn.connect("clicked", self._on_nav, page_id)
+            self._nav_buttons[page_id] = btn
+            nav_box.append(btn)
 
-        add_item("home", "🏠", "HOME")
+        add_nav("victus", "💻", "Cihaz Kontrolü")
 
-        cat_lbl = Gtk.Label(label="VICTUS Laptop")
-        cat_lbl.add_css_class("sidebar-category")
-        cat_lbl.set_xalign(0)
-        cat_lbl.set_margin_top(16)
-        cat_lbl.set_margin_start(16)
-        sidebar.append(cat_lbl)
+        sep_lbl = Gtk.Label(label="Sistem")
+        sep_lbl.add_css_class("sidebar-category")
+        sep_lbl.set_xalign(0)
+        sep_lbl.set_margin_top(12)
+        sep_lbl.set_margin_start(20)
+        sep_lbl.set_margin_bottom(4)
+        nav_box.append(sep_lbl)
 
-        add_item("victus", "💻", "Victus Cihazım")
-        add_item("settings", "⚙️", "Ayarlar")
+        add_nav("settings", "⚙️", "Ayarlar")
+
+        sidebar.append(nav_box)
 
         self._nav_buttons["victus"].add_css_class("active")
         self.main_stack.set_visible_child_name("victus")
 
         return sidebar
 
-    def _on_sidebar_nav(self, btn, page_name):
-        self.main_stack.set_visible_child_name(page_name)
+    def _on_nav(self, btn, page_id):
+        self.main_stack.set_visible_child_name(page_id)
         for k, b in self._nav_buttons.items():
             b.remove_css_class("active")
-            if k == page_name:
+            if k == page_id:
                 b.add_css_class("active")
-
-    def _build_home_page(self) -> Gtk.Widget:
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        lbl = Gtk.Label(label="Home Page - Boş")
-        lbl.set_vexpand(True)
-        box.append(lbl)
-        return box
 
     def _build_victus_page(self) -> Gtk.Widget:
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -108,33 +113,31 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self._tab_buttons = {}
 
-        def add_tab(id_name, label, widget):
-            self.victus_stack.add_named(widget, id_name)
+        def add_tab(tab_id, label, widget):
+            self.victus_stack.add_named(widget, tab_id)
             btn = Gtk.Button(label=label)
             btn.add_css_class("top-tab-btn")
-            btn.connect("clicked", self._on_top_tab_nav, id_name)
-            self._tab_buttons[id_name] = btn
+            btn.connect("clicked", self._on_tab, tab_id)
+            self._tab_buttons[tab_id] = btn
             tab_bar.append(btn)
 
-        add_tab("vitals", "System Vitals", SystemVitalsPage())
-        add_tab("lighting", "Lighting", LightingPage())
-        add_tab("performance", "Performance Control", FanPanel())
+        add_tab("performance", "Performans", FanPanel())
+        add_tab("vitals", "Sistem İzleme", SystemVitalsPage())
+        add_tab("lighting", "Aydınlatma", LightingPage())
 
         self._tab_buttons["performance"].add_css_class("active")
         self.victus_stack.set_visible_child_name("performance")
 
         vbox.append(tab_bar)
         vbox.append(self.victus_stack)
-
         return vbox
 
-    def _on_top_tab_nav(self, btn, page_name):
-        self.victus_stack.set_visible_child_name(page_name)
+    def _on_tab(self, btn, tab_id):
+        self.victus_stack.set_visible_child_name(tab_id)
         for k, b in self._tab_buttons.items():
             b.remove_css_class("active")
-            if k == page_name:
+            if k == tab_id:
                 b.add_css_class("active")
 
     def do_close_request(self) -> bool:
-        # Return False to allow the window to close normally
         return False
