@@ -19,9 +19,9 @@ BALANCED_CURVE = [
 PERFORMANCE_CURVE = [
     (0,  40),
     (50, 55),
-    (60, 75),
-    (70, 90),
-    (75, 100),
+    (65, 75),
+    (72, 90),
+    (78, 100),
 ]
 
 DEFAULT_HYSTERESIS = 4

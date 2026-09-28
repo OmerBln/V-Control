@@ -9,9 +9,10 @@ from vcontrol.backend.fan_curves import get_target_pwm
 logger = logging.getLogger(__name__)
 
 WATCHDOG_INTERVAL_S = 2
-SPIKE_THRESHOLD_C = 20
-OVERHEAT_TEMP = 70
-OVERHEAT_RELEASE_TEMP = 65
+SPIKE_THRESHOLD_C = 15
+OVERHEAT_TEMP = 88
+OVERHEAT_RELEASE_TEMP = 80
+_OVERHEAT_CONFIRM_TICKS = 2
 
 
 class FanWatchdog:
@@ -23,13 +24,14 @@ class FanWatchdog:
         self._last_speed = -1
         self._last_mode = None
         self._last_is_manual = None
-        self._temp_history: deque[int] = deque(maxlen=5)
+        self._temp_history: deque[int] = deque(maxlen=3)
         self._pending_up_speed = -1
         self._pending_up_count = 0
-        self._SPINUP_TICKS = 2
+        self._SPINUP_TICKS = 3
         self._hold_down_ticks = 0
-        self._HOLD_TICKS = 4
+        self._HOLD_TICKS = 6
         self._in_overheat = False
+        self._overheat_confirm_count = 0
 
     @property
     def is_running(self) -> bool:
@@ -81,10 +83,12 @@ class FanWatchdog:
         self._hold_down_ticks = 0
         self._temp_history.clear()
         self._in_overheat = False
+        self._overheat_confirm_count = 0
 
     def _add_temp_sample(self, raw_temp: int) -> int:
-        if len(self._temp_history) >= 2:
-            recent_median = statistics.median(list(self._temp_history)[-3:])
+        if len(self._temp_history) >= 3:
+            recent = list(self._temp_history)[-3:]
+            recent_median = statistics.median(recent)
             upward_jump = raw_temp - recent_median
             if upward_jump > SPIKE_THRESHOLD_C:
                 logger.warning(
@@ -92,6 +96,11 @@ class FanWatchdog:
                     f"(median {recent_median:.0f}°C, +{upward_jump:.0f}°C)"
                 )
                 return int(round(statistics.median(self._temp_history)))
+
+            # Fast cooldown: if temp dropped well below buffer median, clear old samples
+            current_median = statistics.median(self._temp_history)
+            if current_median - raw_temp > SPIKE_THRESHOLD_C:
+                self._temp_history.clear()
 
         self._temp_history.append(raw_temp)
         return int(round(statistics.median(self._temp_history)))
@@ -131,14 +140,21 @@ class FanWatchdog:
 
             if self._in_overheat:
                 if filtered_temp <= OVERHEAT_RELEASE_TEMP:
+                    self._overheat_confirm_count = 0
                     self._in_overheat = False
                     logger.info(f"Overheat protection released at {filtered_temp}°C.")
                 else:
                     curve_target = 100
             elif filtered_temp >= OVERHEAT_TEMP:
-                self._in_overheat = True
-                curve_target = 100
-                logger.warning(f"Overheat protection engaged at {filtered_temp}°C.")
+                self._overheat_confirm_count += 1
+                if self._overheat_confirm_count >= _OVERHEAT_CONFIRM_TICKS:
+                    self._in_overheat = True
+                    curve_target = 100
+                    logger.warning(f"Overheat protection engaged at {filtered_temp}°C.")
+                else:
+                    logger.debug(f"Overheat candidate ({self._overheat_confirm_count}/{_OVERHEAT_CONFIRM_TICKS}) at {filtered_temp}°C.")
+            else:
+                self._overheat_confirm_count = 0
 
             if self._last_speed == -1:
                 target_speed = curve_target
