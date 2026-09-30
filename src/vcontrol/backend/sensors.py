@@ -57,25 +57,23 @@ def _read_millidegree(path: str) -> float:
 
 
 def read_cpu_temp() -> float:
-    hwmon = _find_hwmon_by_name("coretemp")
-    if not hwmon:
-        hwmon = _find_hwmon_by_name("acpitz")
+    for target_name in ("coretemp", "k10temp", "zenpower", "acpitz"):
+        hwmon = _find_hwmon_by_name(target_name)
         if not hwmon:
-            return 0.0
-        return _read_millidegree(os.path.join(hwmon, "temp1_input"))
-
-    for label_file in glob.glob(os.path.join(hwmon, "temp*_label")):
-        try:
-            with open(label_file) as f:
-                label = f.read().strip()
-            if "Package" in label or "Tdie" in label:
-                return _read_millidegree(label_file.replace("_label", "_input"))
-        except OSError:
             continue
+            
+        for label_file in glob.glob(os.path.join(hwmon, "temp*_label")):
+            try:
+                with open(label_file) as f:
+                    label = f.read().strip()
+                if "Package" in label or "Tdie" in label:
+                    return _read_millidegree(label_file.replace("_label", "_input"))
+            except OSError:
+                continue
 
-    first = glob.glob(os.path.join(hwmon, "temp1_input"))
-    if first:
-        return _read_millidegree(first[0])
+        first = glob.glob(os.path.join(hwmon, "temp1_input"))
+        if first:
+            return _read_millidegree(first[0])
     return 0.0
 
 
@@ -86,6 +84,15 @@ def read_gpu_temp() -> float:
             temp = _read_millidegree(os.path.join(hwmon, "temp1_input"))
             if temp > 0:
                 return temp
+    import subprocess
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"],
+            text=True, timeout=2,
+        )
+        return float(out.strip())
+    except Exception:
+        pass
     return 0.0
 
 

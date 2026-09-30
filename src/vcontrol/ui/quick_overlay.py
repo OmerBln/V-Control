@@ -237,6 +237,11 @@ class QuickOverlay(Gtk.Window):
 
     def _update_now(self) -> bool:
         try:
+            p = self._profiles.active_profile
+            if not hasattr(self, '_last_prof_state') or self._last_prof_state != (p.name, p.is_manual, p.manual_speed):
+                self._last_prof_state = (p.name, p.is_manual, p.manual_speed)
+                self._refresh_fan_ui()
+
             temps = self._fan.get_temperatures()
             rpms = self._fan.get_rpms()
             ram_pct = psutil.virtual_memory().percent

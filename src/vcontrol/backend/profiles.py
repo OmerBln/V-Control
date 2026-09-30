@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 CONFIG_DIR = os.path.expanduser("~/.config/v-control")
 PROFILES_FILE = os.path.join(CONFIG_DIR, "profiles.json")
-_LOAD_INTERVAL_S = 5.0
+_LOAD_INTERVAL_S = 0.5
 
 
 @dataclass

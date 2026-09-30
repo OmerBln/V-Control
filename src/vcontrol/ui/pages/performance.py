@@ -179,6 +179,16 @@ class FanPanel(Gtk.ScrolledWindow):
     # ── Callbacks ──────────────────────────────────────────────
 
     def _update_dashboard(self) -> bool:
+        p = self.profiles.active_profile
+        if not hasattr(self, '_last_prof_state') or self._last_prof_state != (p.name, p.is_manual, p.manual_speed):
+            self._last_prof_state = (p.name, p.is_manual, p.manual_speed)
+            self._current_profile = p.name
+            for n, b in self.buttons.items():
+                b.remove_css_class("active-profile")
+                if n == p.name:
+                    b.add_css_class("active-profile")
+            self._refresh_ui()
+
         rpms = self.fan_ctrl.get_rpms()
         self.lbl_fan1["val"].set_label(str(rpms.get("fan1", 0)))
         self.lbl_fan2["val"].set_label(str(rpms.get("fan2", 0)))
