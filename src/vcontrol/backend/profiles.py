@@ -1,9 +1,8 @@
 import json
-import os
 import logging
+import os
 import time
-from dataclasses import dataclass, asdict
-from typing import Optional
+from dataclasses import asdict, dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +29,10 @@ BUILTIN_PROFILES = [
 
 
 class ProfileManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self._profiles = {p.name: p for p in BUILTIN_PROFILES}
         self._active_name = "Balanced"
-        self._last_mtime = 0
+        self._last_mtime: float = 0.0
         self._last_load_time: float = 0.0
         self._load()
 
@@ -62,7 +61,7 @@ class ProfileManager:
                     self._profiles[name].is_manual = p_data.get("is_manual", False)
                     self._profiles[name].manual_speed = p_data.get("manual_speed", 50)
                     self._profiles[name].hysteresis = p_data.get("hysteresis", 4)
-        except Exception as e:
+        except (OSError, ValueError, TypeError, AttributeError) as e:
             logger.error(f"Profile load error: {e}")
 
     def save(self):
@@ -76,13 +75,13 @@ class ProfileManager:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             self._last_mtime = os.path.getmtime(PROFILES_FILE)
             self._last_load_time = time.monotonic()
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.error(f"Profile save error: {e}")
 
     def all_profiles(self) -> list[FanProfile]:
         return [self._profiles["Eco"], self._profiles["Balanced"], self._profiles["Performance"]]
 
-    def get_profile(self, name: str) -> Optional[FanProfile]:
+    def get_profile(self, name: str) -> FanProfile | None:
         return self._profiles.get(name)
 
     @property
