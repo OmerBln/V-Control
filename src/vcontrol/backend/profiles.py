@@ -38,10 +38,6 @@ class ProfileManager:
         self._load()
 
     def _load(self):
-        os.makedirs(CONFIG_DIR, exist_ok=True)
-        if not os.path.exists(PROFILES_FILE):
-            return
-
         now = time.monotonic()
         if now - self._last_load_time < _LOAD_INTERVAL_S:
             return
@@ -49,8 +45,12 @@ class ProfileManager:
 
         try:
             mtime = os.path.getmtime(PROFILES_FILE)
-            if mtime <= self._last_mtime:
-                return
+        except OSError:
+            return
+        if mtime <= self._last_mtime:
+            return
+
+        try:
             self._last_mtime = mtime
 
             with open(PROFILES_FILE, encoding="utf-8") as f:
