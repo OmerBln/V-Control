@@ -56,51 +56,74 @@ def _read_millidegree(path: str) -> float:
         return 0.0
 
 
-def read_cpu_temp() -> float:
+def _resolve_cpu_temp_path() -> Optional[str]:
     for target_name in ("coretemp", "k10temp", "zenpower", "acpitz"):
         hwmon = _find_hwmon_by_name(target_name)
         if not hwmon:
             continue
-            
+
         for label_file in glob.glob(os.path.join(hwmon, "temp*_label")):
             try:
                 with open(label_file) as f:
                     label = f.read().strip()
                 if "Package" in label or "Tdie" in label:
-                    return _read_millidegree(label_file.replace("_label", "_input"))
+                    return label_file.replace("_label", "_input")
             except OSError:
                 continue
 
-        first = glob.glob(os.path.join(hwmon, "temp1_input"))
-        if first:
-            return _read_millidegree(first[0])
-    return 0.0
+        first = os.path.join(hwmon, "temp1_input")
+        if os.path.exists(first):
+            return first
+    return None
 
 
-def read_gpu_temp() -> float:
+def _resolve_gpu_temp_path() -> Optional[str]:
     for driver in ("nvidia", "nouveau", "amdgpu", "radeon"):
         hwmon = _find_hwmon_by_name(driver)
         if hwmon:
-            temp = _read_millidegree(os.path.join(hwmon, "temp1_input"))
-            if temp > 0:
-                return temp
-    import subprocess
-    try:
-        out = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"],
-            text=True, timeout=2,
-        )
-        return float(out.strip())
-    except Exception:
-        pass
+            path = os.path.join(hwmon, "temp1_input")
+            if os.path.exists(path):
+                return path
+    return None
+
+
+def _resolve_nvme_temp_path() -> Optional[str]:
+    hwmon = _find_hwmon_by_name("nvme")
+    return os.path.join(hwmon, "temp1_input") if hwmon else None
+
+
+_UNRESOLVED = object()
+_path_cache: dict = {}
+
+
+def _read_cached(key: str, resolver) -> float:
+    path = _path_cache.get(key, _UNRESOLVED)
+    if path is _UNRESOLVED:
+        path = _path_cache[key] = resolver()
+    if path:
+        temp = _read_millidegree(path)
+        if temp > 0:
+            return temp
+        # Stale path (hwmon renumbered): force re-resolve on next call
+        _path_cache.pop(key, None)
     return 0.0
 
 
+def read_cpu_temp() -> float:
+    return _read_cached("cpu", _resolve_cpu_temp_path)
+
+
+def read_gpu_temp() -> float:
+    temp = _read_cached("gpu", _resolve_gpu_temp_path)
+    if temp > 0:
+        return temp
+    # Shares FanController's throttled nvidia-smi cache to avoid duplicate spawns
+    from vcontrol.backend.fan import get_controller
+    return float(get_controller()._read_gpu_temp())
+
+
 def read_nvme_temp() -> float:
-    hwmon = _find_hwmon_by_name("nvme")
-    if not hwmon:
-        return 0.0
-    return _read_millidegree(os.path.join(hwmon, "temp1_input"))
+    return _read_cached("nvme", _resolve_nvme_temp_path)
 
 
 def read_all() -> SensorReading:
