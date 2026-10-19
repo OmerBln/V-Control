@@ -1,4 +1,5 @@
 import time
+from collections import deque
 import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
@@ -19,7 +20,7 @@ class _GraphArea(Gtk.DrawingArea):
     def __init__(self, color_r: float, color_g: float, color_b: float):
         super().__init__()
         self._color = (color_r, color_g, color_b)
-        self._values: list[float] = []
+        self._values: deque[float] = deque(maxlen=GRAPH_POINTS)
         self.set_content_width(GRAPH_W)
         self.set_content_height(GRAPH_H)
         self.set_hexpand(True)
@@ -27,9 +28,8 @@ class _GraphArea(Gtk.DrawingArea):
 
     def push(self, value: float):
         self._values.append(value)
-        if len(self._values) > GRAPH_POINTS:
-            self._values.pop(0)
-        self.queue_draw()
+        if self.get_mapped():
+            self.queue_draw()
 
     def _draw(self, area, cr, w, h):
         if not self._values:
@@ -39,7 +39,7 @@ class _GraphArea(Gtk.DrawingArea):
         cr.rectangle(0, 0, w, h)
         cr.fill()
 
-        vals = self._values
+        vals = list(self._values)
         max_v = max(max(vals), 100)
 
         r, g, b = self._color
@@ -151,15 +151,17 @@ class SystemVitalsPage(Gtk.ScrolledWindow):
 
     def _tick(self) -> bool:
         reading = update_history()
-        rpms = self._fan.get_rpms()
+        self._graph_cpu["area"].push(reading.cpu_temp)
+        self._graph_gpu["area"].push(reading.gpu_temp)
 
+        if not self.get_mapped():
+            return True
+
+        rpms = self._fan.get_rpms()
         self._set_stat(self._lbl_cpu,  f"{reading.cpu_temp:.0f}°C")
         self._set_stat(self._lbl_gpu,  f"{reading.gpu_temp:.0f}°C")
         self._set_stat(self._lbl_nvme, f"{reading.nvme_temp:.0f}°C")
         self._set_stat(self._lbl_f1,   f"{rpms.get('fan1', 0)} RPM")
         self._set_stat(self._lbl_f2,   f"{rpms.get('fan2', 0)} RPM")
-
-        self._graph_cpu["area"].push(reading.cpu_temp)
-        self._graph_gpu["area"].push(reading.gpu_temp)
 
         return True
