@@ -1,10 +1,10 @@
 import logging
 import statistics
 from collections import deque
-from typing import Optional
+
 from vcontrol.backend.fan import get_controller
-from vcontrol.backend.profiles import get_manager
 from vcontrol.backend.fan_curves import get_target_pwm
+from vcontrol.backend.profiles import get_manager
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ _OVERHEAT_CONFIRM_TICKS = 2
 class FanWatchdog:
     def __init__(self):
         self._enabled = False
-        self._timer_id: Optional[int] = None
+        self._timer_id: int | None = None
         self._fan = get_controller()
         self._profiles = get_manager()
         self._last_speed = -1
@@ -50,8 +50,8 @@ class FanWatchdog:
             try:
                 from gi.repository import GLib
                 GLib.source_remove(self._timer_id)
-            except Exception:
-                pass
+            except Exception as e:  # noqa: BLE001
+                logger.debug(f"GLib timer cleanup: {e}")
             self._timer_id = None
         logger.info("Thermal Engine stopped.")
 
@@ -95,7 +95,7 @@ class FanWatchdog:
                     f"Sensor spike rejected: {raw_temp}°C "
                     f"(median {recent_median:.0f}°C, +{upward_jump:.0f}°C)"
                 )
-                return int(round(statistics.median(self._temp_history)))
+                return round(statistics.median(self._temp_history))
 
             # Fast cooldown: if temp dropped well below buffer median, clear old samples
             current_median = statistics.median(self._temp_history)
@@ -103,7 +103,7 @@ class FanWatchdog:
                 self._temp_history.clear()
 
         self._temp_history.append(raw_temp)
-        return int(round(statistics.median(self._temp_history)))
+        return round(statistics.median(self._temp_history))
 
     def _apply_logic(self):
         if not self._fan.available:

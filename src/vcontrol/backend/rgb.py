@@ -1,10 +1,9 @@
 
 
-import os
 import glob
 import logging
+import os
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +29,12 @@ class RGBStatus:
 class RGBController:
 
     def __init__(self):
-        self._led_path: Optional[str] = self._find_led_path()
-        self._wmi_path: Optional[str] = self._find_wmi_path()
+        self._led_path: str | None = self._find_led_path()
+        self._wmi_path: str | None = self._find_wmi_path()
         self._method = self._detect_method()
         logger.info(f"RGB kontrolcüsü başlatıldı — yöntem: {self._method}")
 
-    def _find_led_path(self) -> Optional[str]:
+    def _find_led_path(self) -> str | None:
         
         candidates = [
             os.path.join(LEDS_BASE, "hp::kbd_backlight"),
@@ -52,7 +51,7 @@ class RGBController:
             return matches[0]
         return None
 
-    def _find_wmi_path(self) -> Optional[str]:
+    def _find_wmi_path(self) -> str | None:
         
         for guid in HP_LIGHTING_GUIDS:
             path = os.path.join(WMI_BASE, f"{guid}-15")
@@ -85,7 +84,9 @@ class RGBController:
         return RGBStatus(method=self._method, supported=self.supported)
 
     def _read_sysfs(self) -> RGBStatus:
-        
+        if not self._led_path:
+            return RGBStatus(method=self._method, supported=False)
+
         brightness = 0
         max_brightness = 3
         try:
@@ -114,6 +115,8 @@ class RGBController:
         return False
 
     def _write_sysfs(self, attr: str, value: int) -> bool:
+        if not self._led_path:
+            return False
         try:
             path = os.path.join(self._led_path, attr)
             with open(path, "w") as f:
@@ -138,7 +141,7 @@ class RGBController:
                     result["hp_guids_found"].append(device_id)
         return result
 
-_controller: Optional[RGBController] = None
+_controller: RGBController | None = None
 
 def get_controller() -> RGBController:
     global _controller

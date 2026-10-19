@@ -1,6 +1,6 @@
+import glob
 import logging
 import os
-import glob
 import subprocess
 import time
 
@@ -79,10 +79,11 @@ class FanController:
             name = _read_hwmon_name(hwmon)
             if name is None:
                 continue
-            if name in ("nvidia", "nouveau", "amdgpu", "radeon"):
-                if os.path.exists(os.path.join(hwmon, "temp1_input")):
-                    logger.info(f"GPU hwmon: {hwmon} ({name})")
-                    return hwmon
+            if name in ("nvidia", "nouveau", "amdgpu", "radeon") and os.path.exists(
+                os.path.join(hwmon, "temp1_input")
+            ):
+                logger.info(f"GPU hwmon: {hwmon} ({name})")
+                return hwmon
         return None
 
     def _write_sysfs(self, path: str, value: str) -> bool:
@@ -100,9 +101,11 @@ class FanController:
                     check=True,
                 )
                 return True
-            except Exception:
+            except (OSError, subprocess.SubprocessError):
                 logger.error(f"Permission denied: {path}")
-        except Exception as e:
+        # Deliberate catch-all: this runs inside the watchdog timer callback and an
+        # escaping exception would stop fan control entirely.
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Sysfs write error ({path}): {e}")
         return False
 
@@ -110,7 +113,7 @@ class FanController:
         try:
             with open(path) as f:
                 return f.read().strip()
-        except Exception:
+        except (OSError, ValueError):
             return default
 
     def set_fan_speed(self, percent: int) -> bool:
@@ -125,7 +128,7 @@ class FanController:
         else:
             self._pwm_enable_cache = "1"
 
-        pwm_val = max(0, min(255, int(round(percent / 100.0 * 255.0))))
+        pwm_val = max(0, min(255, round(percent / 100.0 * 255.0)))
         ok1 = self._write_sysfs(self.pwm1, str(pwm_val))
         ok2 = True
         if self._has_pwm2:
@@ -171,7 +174,7 @@ class FanController:
             )
             self._nvsmi_value = int(out.strip())
             self._nvsmi_next_query = now + _NVSMI_CACHE_TTL_S
-        except Exception:
+        except (OSError, subprocess.SubprocessError, ValueError):
             self._nvsmi_value = 0
             self._nvsmi_next_query = now + _NVSMI_RETRY_BACKOFF_S
         return self._nvsmi_value
@@ -187,8 +190,8 @@ class FanController:
             if self._fan2_input:
                 with open(self._fan2_input) as f:
                     fan2 = int(f.read().strip())
-        except Exception:
-            pass
+        except (OSError, ValueError) as e:
+            logger.debug(f"RPM read failed: {e}")
         return {"fan1": fan1, "fan2": fan2}
 
 

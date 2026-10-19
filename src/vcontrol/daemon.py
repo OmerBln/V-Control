@@ -1,7 +1,9 @@
 import logging
 import signal
 import sys
+
 from gi.repository import GLib
+
 from vcontrol.backend.watchdog import get_watchdog
 
 logging.basicConfig(

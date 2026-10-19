@@ -1,11 +1,12 @@
+import logging
 import os
 import sys
-import psutil
-import logging
+
 import gi
+import psutil
+
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, Gdk, GLib, Pango
-from typing import Optional
+from gi.repository import Gdk, GLib, Gtk
 
 from vcontrol.backend.fan import get_controller
 from vcontrol.backend.profiles import get_manager
@@ -29,6 +30,7 @@ class QuickOverlay(Gtk.Window):
         self._profiles = get_manager()
         self._update_timer = None
         self._updating = False
+        self._last_prof_state: tuple[str, bool, int] | None = None
         
         self._build_ui()
         
@@ -251,7 +253,7 @@ class QuickOverlay(Gtk.Window):
             self.lbl_ram['val'].set_label(f"{ram_pct:.1f}")
             self.lbl_fan1['val'].set_label(str(rpms.get('fan1', 0)))
             self.lbl_fan2['val'].set_label(str(rpms.get('fan2', 0)))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Overlay güncelleme hatası: {e}")
         return True
 
@@ -277,7 +279,7 @@ def load_css():
 class OverlayApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id="com.vcontrol.overlay")
-        self._window: Optional[QuickOverlay] = None
+        self._window: QuickOverlay | None = None
 
     def do_activate(self):
         if self._window is not None and self._window.is_visible():

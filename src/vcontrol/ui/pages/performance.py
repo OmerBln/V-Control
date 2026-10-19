@@ -1,10 +1,11 @@
 import gi
+
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw, GLib
+from gi.repository import Adw, GLib, Gtk
 
-from vcontrol.backend.profiles import get_manager
 from vcontrol.backend.fan import get_controller
+from vcontrol.backend.profiles import get_manager
 
 
 def _temp_class(temp: int) -> str:
@@ -27,6 +28,7 @@ class FanPanel(Gtk.ScrolledWindow):
         self._current_profile = self.profiles.active_profile.name
         self._last_cpu = 0
         self._last_gpu = 0
+        self._last_prof_state: tuple[str, bool, int] | None = None
         self._updating = False
 
         clamp = Adw.Clamp()

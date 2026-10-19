@@ -1,14 +1,16 @@
 import logging
+
 import gi
+
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, GLib, Adw
+from gi.repository import Gtk
 
 logger = logging.getLogger(__name__)
 
-from vcontrol.ui.pages.system_vitals import SystemVitalsPage
-from vcontrol.ui.pages.performance import FanPanel
 from vcontrol.ui.pages.lighting import LightingPage
+from vcontrol.ui.pages.performance import FanPanel
+from vcontrol.ui.pages.system_vitals import SystemVitalsPage
 from vcontrol.ui.settings_panel import SettingsPanel
 
 
@@ -60,7 +62,7 @@ class MainWindow(Gtk.ApplicationWindow):
         nav_box.set_margin_top(12)
         nav_box.set_margin_bottom(12)
 
-        self._nav_buttons = {}
+        self._nav_buttons: dict[str, Gtk.Button] = {}
 
         def add_nav(page_id, icon, label):
             btn = Gtk.Button()
@@ -111,7 +113,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.victus_stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
         self.victus_stack.set_vexpand(True)
 
-        self._tab_buttons = {}
+        self._tab_buttons: dict[str, Gtk.Button] = {}
 
         def add_tab(tab_id, label, widget):
             self.victus_stack.add_named(widget, tab_id)

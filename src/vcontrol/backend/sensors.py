@@ -1,10 +1,9 @@
-import os
 import glob
-import time
 import logging
-from dataclasses import dataclass, field
+import os
+import time
 from collections import deque
-from typing import Optional
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ class SensorHistory:
         return len(self._data)
 
 
-def _find_hwmon_by_name(name: str) -> Optional[str]:
+def _find_hwmon_by_name(name: str) -> str | None:
     for path in glob.glob(f"{HWMON_BASE}/hwmon*"):
         try:
             with open(os.path.join(path, "name")) as f:
@@ -56,7 +55,7 @@ def _read_millidegree(path: str) -> float:
         return 0.0
 
 
-def _resolve_cpu_temp_path() -> Optional[str]:
+def _resolve_cpu_temp_path() -> str | None:
     for target_name in ("coretemp", "k10temp", "zenpower", "acpitz"):
         hwmon = _find_hwmon_by_name(target_name)
         if not hwmon:
@@ -77,7 +76,7 @@ def _resolve_cpu_temp_path() -> Optional[str]:
     return None
 
 
-def _resolve_gpu_temp_path() -> Optional[str]:
+def _resolve_gpu_temp_path() -> str | None:
     for driver in ("nvidia", "nouveau", "amdgpu", "radeon"):
         hwmon = _find_hwmon_by_name(driver)
         if hwmon:
@@ -87,7 +86,7 @@ def _resolve_gpu_temp_path() -> Optional[str]:
     return None
 
 
-def _resolve_nvme_temp_path() -> Optional[str]:
+def _resolve_nvme_temp_path() -> str | None:
     hwmon = _find_hwmon_by_name("nvme")
     return os.path.join(hwmon, "temp1_input") if hwmon else None
 

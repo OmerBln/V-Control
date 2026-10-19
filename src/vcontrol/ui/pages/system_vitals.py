@@ -1,13 +1,13 @@
-import time
 from collections import deque
+
 import gi
+
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk, Adw, GLib, Gdk
+from gi.repository import Adw, GLib, Gtk
 
 from vcontrol.backend.fan import get_controller
-from vcontrol.backend.sensors import update_history, get_history
-
+from vcontrol.backend.sensors import update_history
 
 GRAPH_POINTS = 60   # seconds of history shown
 GRAPH_W = 560
