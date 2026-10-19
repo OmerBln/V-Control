@@ -189,6 +189,9 @@ class FanPanel(Gtk.ScrolledWindow):
                     b.add_css_class("active-profile")
             self._refresh_ui()
 
+        if not self.get_mapped():
+            return True
+
         rpms = self.fan_ctrl.get_rpms()
         self.lbl_fan1["val"].set_label(str(rpms.get("fan1", 0)))
         self.lbl_fan2["val"].set_label(str(rpms.get("fan2", 0)))
