@@ -4,11 +4,15 @@ import os
 import subprocess
 import time
 
+from vcontrol.backend.thermal_filter import ThermalFilter
+
 logger = logging.getLogger(__name__)
 
 _CPU_HWMON_NAMES = ("coretemp", "k10temp", "zenpower", "acpitz")
 _NVSMI_CACHE_TTL_S = 1.5
 _NVSMI_RETRY_BACKOFF_S = 10.0
+_NVIDIA_VENDOR_ID = "0x10de"
+_DISPLAY_WINDOW_S = 5.0
 
 
 def _read_hwmon_name(hwmon: str) -> str | None:
@@ -17,6 +21,21 @@ def _read_hwmon_name(hwmon: str) -> str | None:
             return f.read().strip()
     except OSError:
         return None
+
+
+def _find_nvidia_gpu_pci_devices() -> list[str]:
+    devices = []
+    for dev in glob.glob("/sys/bus/pci/devices/*"):
+        try:
+            with open(os.path.join(dev, "vendor")) as f:
+                vendor = f.read().strip()
+            with open(os.path.join(dev, "class")) as f:
+                pci_class = f.read().strip()
+        except OSError:
+            continue
+        if vendor == _NVIDIA_VENDOR_ID and pci_class.startswith("0x03"):
+            devices.append(dev)
+    return devices
 
 
 class FanController:
@@ -40,31 +59,61 @@ class FanController:
             self._fan1_input = None
             self._fan2_input = None
 
-        self._pwm_enable_cache: str = ""
         self._gpu_hwmon: str | None = self._find_gpu_hwmon()
-        self._cpu_temp_path: str | None = self._find_cpu_temp_path()
+        self._nvidia_pci: list[str] = _find_nvidia_gpu_pci_devices()
+        self._cpu_temp_path: str | None = None
+        self._cpu_core_paths: list[str] = []
+        self._cpu_pkg_path: str | None = None
+        self._find_cpu_sensors()
         self._nvsmi_value: int = 0
         self._nvsmi_next_query: float = 0.0
+        self._display_cpu_filter = ThermalFilter(_DISPLAY_WINDOW_S)
 
-    def _find_cpu_temp_path(self) -> str | None:
+    def _find_cpu_sensors(self) -> None:
+        self._cpu_core_paths = []
+        self._cpu_pkg_path = None
+        self._cpu_temp_path = None
+
         hwmons = sorted(glob.glob("/sys/class/hwmon/hwmon*"))
         names = {h: _read_hwmon_name(h) for h in hwmons}
         for target_name in _CPU_HWMON_NAMES:
             for hwmon in hwmons:
                 if names[hwmon] != target_name:
                     continue
+                cores = []
+                pkg = None
                 for label_file in sorted(glob.glob(os.path.join(hwmon, "temp*_label"))):
                     try:
                         with open(label_file) as f:
                             label = f.read().strip()
                     except OSError:
                         continue
+                    input_file = label_file.replace("_label", "_input")
+                    if not os.path.exists(input_file):
+                        continue
                     if "Package" in label or "Tdie" in label:
-                        return label_file.replace("_label", "_input")
+                        pkg = input_file
+                    elif "Core" in label or "Tctl" not in label:
+                        cores.append(input_file)
+
+                if cores:
+                    self._cpu_core_paths = cores
+                    self._cpu_pkg_path = pkg or cores[0]
+                    self._cpu_temp_path = self._cpu_pkg_path
+                    logger.info(
+                        f"CPU sensors resolved: {len(cores)} cores, "
+                        f"pkg={os.path.basename(self._cpu_pkg_path)} ({target_name})"
+                    )
+                    return
+                if pkg:
+                    self._cpu_pkg_path = pkg
+                    self._cpu_temp_path = pkg
+                    return
+
                 first = os.path.join(hwmon, "temp1_input")
                 if os.path.exists(first):
-                    return first
-        return None
+                    self._cpu_temp_path = first
+                    return
 
     @staticmethod
     def _read_millideg_int(path: str) -> int | None:
@@ -120,13 +169,8 @@ class FanController:
         if not self.available:
             return False
 
-        current_mode = self._read_sysfs(self.pwm1_enable)
-        if current_mode != "1":
-            ok = self._write_sysfs(self.pwm1_enable, "1")
-            if ok:
-                self._pwm_enable_cache = "1"
-        else:
-            self._pwm_enable_cache = "1"
+        if not self.is_manual_mode() and not self._write_sysfs(self.pwm1_enable, "1"):
+            return False
 
         pwm_val = max(0, min(255, round(percent / 100.0 * 255.0)))
         ok1 = self._write_sysfs(self.pwm1, str(pwm_val))
@@ -138,32 +182,63 @@ class FanController:
     def set_auto(self) -> bool:
         if not self.available:
             return False
-        ok = self._write_sysfs(self.pwm1_enable, "2")
-        if ok:
-            self._pwm_enable_cache = "2"
-        return ok
+        return self._write_sysfs(self.pwm1_enable, "2")
+
+    def is_manual_mode(self) -> bool:
+        if not self.available:
+            return False
+        return self._read_sysfs(self.pwm1_enable) == "1"
 
     def get_temperatures(self) -> dict:
-        return {"cpu": self._read_cpu_temp(), "gpu": self._read_gpu_temp()}
+        self._display_cpu_filter.add(self.read_cpu_temp_raw())
+        return {
+            "cpu": round(self._display_cpu_filter.value()),
+            "gpu": self.read_gpu_temp(),
+        }
 
-    def _read_cpu_temp(self) -> int:
+    def read_cpu_temp_raw(self) -> int:
+        if self._cpu_core_paths:
+            core_vals = []
+            for cp in self._cpu_core_paths:
+                val = self._read_millideg_int(cp)
+                if val is not None and val > 0:
+                    core_vals.append(val)
+            if core_vals:
+                avg_core = sum(core_vals) / len(core_vals)
+                pkg_val = self._read_millideg_int(self._cpu_pkg_path) if self._cpu_pkg_path else max(core_vals)
+                if pkg_val is None or pkg_val <= 0:
+                    pkg_val = max(core_vals)
+                return round(0.7 * avg_core + 0.3 * pkg_val)
+
         if self._cpu_temp_path:
             val = self._read_millideg_int(self._cpu_temp_path)
-            if val is not None:
+            if val is not None and val > 0:
                 return val
-        # Path missing or stale (hwmon renumbered): re-resolve once
-        self._cpu_temp_path = self._find_cpu_temp_path()
+
+        self._find_cpu_sensors()
+        if self._cpu_core_paths:
+            return self.read_cpu_temp_raw()
         if self._cpu_temp_path:
             val = self._read_millideg_int(self._cpu_temp_path)
             if val is not None:
                 return val
         return 0
 
-    def _read_gpu_temp(self) -> int:
+    def _dgpu_suspended(self) -> bool:
+        for dev in self._nvidia_pci:
+            if self._read_sysfs(os.path.join(dev, "power", "runtime_status")) == "suspended":
+                return True
+        return False
+
+    def read_gpu_temp(self) -> int:
         if self._gpu_hwmon:
             val = self._read_millideg_int(os.path.join(self._gpu_hwmon, "temp1_input"))
             if val is not None:
                 return val
+        if self._dgpu_suspended():
+            self._nvsmi_value = 0
+            self._nvsmi_next_query = 0.0
+            return 0
         now = time.monotonic()
         if now < self._nvsmi_next_query:
             return self._nvsmi_value
@@ -172,7 +247,7 @@ class FanController:
                 ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"],
                 text=True, timeout=2,
             )
-            self._nvsmi_value = int(out.strip())
+            self._nvsmi_value = int(out.strip().splitlines()[0])
             self._nvsmi_next_query = now + _NVSMI_CACHE_TTL_S
         except (OSError, subprocess.SubprocessError, ValueError):
             self._nvsmi_value = 0
@@ -182,17 +257,18 @@ class FanController:
     def get_rpms(self) -> dict:
         if not self.available or not self.hwmon:
             return {"fan1": 0, "fan2": 0}
-        fan1, fan2 = 0, 0
+        return {"fan1": self._read_rpm(self._fan1_input), "fan2": self._read_rpm(self._fan2_input)}
+
+    @staticmethod
+    def _read_rpm(path: str | None) -> int:
+        if not path:
+            return 0
         try:
-            if self._fan1_input:
-                with open(self._fan1_input) as f:
-                    fan1 = int(f.read().strip())
-            if self._fan2_input:
-                with open(self._fan2_input) as f:
-                    fan2 = int(f.read().strip())
+            with open(path) as f:
+                return int(f.read().strip())
         except (OSError, ValueError) as e:
-            logger.debug(f"RPM read failed: {e}")
-        return {"fan1": fan1, "fan2": fan2}
+            logger.debug(f"RPM read failed ({path}): {e}")
+            return 0
 
 
 _controller = None

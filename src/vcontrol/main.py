@@ -6,7 +6,8 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Gdk", "4.0")
-from gi.repository import Gdk, Gtk
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, Gtk
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,7 +32,7 @@ def load_css():
     logger.info("CSS loaded.")
 
 
-class HPVictusApp(Gtk.Application):
+class HPVictusApp(Adw.Application):
 
     def __init__(self):
         super().__init__(application_id="com.vcontrol.app")
@@ -50,7 +51,7 @@ class HPVictusApp(Gtk.Application):
         self._window.present()
 
     def do_startup(self):
-        Gtk.Application.do_startup(self)
+        Adw.Application.do_startup(self)
         logger.info("V-Control starting...")
 
 

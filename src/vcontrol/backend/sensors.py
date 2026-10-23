@@ -5,6 +5,8 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 
+from vcontrol.backend.fan import get_controller
+
 logger = logging.getLogger(__name__)
 
 HWMON_BASE = "/sys/class/hwmon"
@@ -55,70 +57,42 @@ def _read_millidegree(path: str) -> float:
         return 0.0
 
 
-def _resolve_cpu_temp_path() -> str | None:
-    for target_name in ("coretemp", "k10temp", "zenpower", "acpitz"):
-        hwmon = _find_hwmon_by_name(target_name)
-        if not hwmon:
-            continue
-
-        for label_file in glob.glob(os.path.join(hwmon, "temp*_label")):
-            try:
-                with open(label_file) as f:
-                    label = f.read().strip()
-                if "Package" in label or "Tdie" in label:
-                    return label_file.replace("_label", "_input")
-            except OSError:
-                continue
-
-        first = os.path.join(hwmon, "temp1_input")
-        if os.path.exists(first):
-            return first
-    return None
-
-
-def _resolve_gpu_temp_path() -> str | None:
-    for driver in ("nvidia", "nouveau", "amdgpu", "radeon"):
-        hwmon = _find_hwmon_by_name(driver)
-        if hwmon:
-            path = os.path.join(hwmon, "temp1_input")
-            if os.path.exists(path):
-                return path
-    return None
-
-
 def _resolve_nvme_temp_path() -> str | None:
     hwmon = _find_hwmon_by_name("nvme")
     return os.path.join(hwmon, "temp1_input") if hwmon else None
 
 
-_UNRESOLVED = object()
-_path_cache: dict = {}
+_RESOLVE_RETRY_S = 30.0
+_path_cache: dict[str, str] = {}
+_next_resolve: dict[str, float] = {}
 
 
 def _read_cached(key: str, resolver) -> float:
-    path = _path_cache.get(key, _UNRESOLVED)
-    if path is _UNRESOLVED:
-        path = _path_cache[key] = resolver()
-    if path:
-        temp = _read_millidegree(path)
-        if temp > 0:
-            return temp
-        # Stale path (hwmon renumbered): force re-resolve on next call
-        _path_cache.pop(key, None)
+    path = _path_cache.get(key)
+    if path is None:
+        # Sensor may appear later (module load, hotplug); retry with a backoff
+        # instead of caching its absence forever.
+        now = time.monotonic()
+        if now < _next_resolve.get(key, 0.0):
+            return 0.0
+        path = resolver()
+        if not path:
+            _next_resolve[key] = now + _RESOLVE_RETRY_S
+            return 0.0
+        _path_cache[key] = path
+    temp = _read_millidegree(path)
+    if temp > 0:
+        return temp
+    _path_cache.pop(key, None)
     return 0.0
 
 
 def read_cpu_temp() -> float:
-    return _read_cached("cpu", _resolve_cpu_temp_path)
+    return float(get_controller().get_temperatures()["cpu"])
 
 
 def read_gpu_temp() -> float:
-    temp = _read_cached("gpu", _resolve_gpu_temp_path)
-    if temp > 0:
-        return temp
-    # Shares FanController's throttled nvidia-smi cache to avoid duplicate spawns
-    from vcontrol.backend.fan import get_controller
-    return float(get_controller()._read_gpu_temp())
+    return float(get_controller().read_gpu_temp())
 
 
 def read_nvme_temp() -> float:
@@ -126,9 +100,10 @@ def read_nvme_temp() -> float:
 
 
 def read_all() -> SensorReading:
+    temps = get_controller().get_temperatures()
     return SensorReading(
-        cpu_temp=read_cpu_temp(),
-        gpu_temp=read_gpu_temp(),
+        cpu_temp=float(temps["cpu"]),
+        gpu_temp=float(temps["gpu"]),
         nvme_temp=read_nvme_temp(),
     )
 

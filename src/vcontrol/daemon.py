@@ -1,6 +1,5 @@
 import logging
 import signal
-import sys
 
 from gi.repository import GLib
 
@@ -13,28 +12,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-loop = GLib.MainLoop()
-
-
-def handle_sigterm(signum, frame):
-    logger.info("Service stopping...")
-    get_watchdog().stop()
-    loop.quit()
-    sys.exit(0)
-
 
 def main():
     logger.info("V-Control Background Service started.")
-    signal.signal(signal.SIGTERM, handle_sigterm)
-    signal.signal(signal.SIGINT, handle_sigterm)
+    loop = GLib.MainLoop()
+
+    def on_signal() -> bool:
+        logger.info("Service stopping...")
+        loop.quit()
+        return GLib.SOURCE_REMOVE
+
+    GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, on_signal)
+    GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGINT, on_signal)
 
     watchdog = get_watchdog()
     watchdog.start()
-
     try:
         loop.run()
-    except KeyboardInterrupt:
-        handle_sigterm(None, None)
+    finally:
+        watchdog.stop()
 
 
 if __name__ == "__main__":

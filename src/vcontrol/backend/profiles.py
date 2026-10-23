@@ -28,6 +28,13 @@ BUILTIN_PROFILES = [
 ]
 
 
+def _clamp(value, lo: int, hi: int, default: int) -> int:
+    try:
+        return max(lo, min(hi, int(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 class ProfileManager:
     def __init__(self) -> None:
         self._profiles = {p.name: p for p in BUILTIN_PROFILES}
@@ -50,18 +57,21 @@ class ProfileManager:
             return
 
         try:
-            self._last_mtime = mtime
-
             with open(PROFILES_FILE, encoding="utf-8") as f:
                 data = json.load(f)
-            self._active_name = data.get("active", "Balanced")
+            active = data.get("active", "Balanced")
+            if active in self._profiles:
+                self._active_name = active
             for p_data in data.get("profiles", []):
                 name = p_data.get("name")
                 if name in self._profiles:
-                    self._profiles[name].is_manual = p_data.get("is_manual", False)
-                    self._profiles[name].manual_speed = p_data.get("manual_speed", 50)
-                    self._profiles[name].hysteresis = p_data.get("hysteresis", 4)
+                    prof = self._profiles[name]
+                    prof.is_manual = bool(p_data.get("is_manual", False))
+                    prof.manual_speed = _clamp(p_data.get("manual_speed", 50), 20, 100, 50)
+                    prof.hysteresis = _clamp(p_data.get("hysteresis", 4), 1, 10, 4)
+            self._last_mtime = mtime
         except (OSError, ValueError, TypeError, AttributeError) as e:
+            self._last_mtime = mtime
             logger.error(f"Profile load error: {e}")
 
     def save(self):
@@ -70,9 +80,11 @@ class ProfileManager:
             "active": self._active_name,
             "profiles": [asdict(p) for p in self._profiles.values()],
         }
+        tmp_path = f"{PROFILES_FILE}.tmp"
         try:
-            with open(PROFILES_FILE, "w") as f:
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, PROFILES_FILE)
             self._last_mtime = os.path.getmtime(PROFILES_FILE)
             self._last_load_time = time.monotonic()
         except (OSError, TypeError, ValueError) as e:
@@ -102,7 +114,7 @@ class ProfileManager:
 
     def update_hysteresis(self, name: str, hysteresis: int):
         if name in self._profiles:
-            self._profiles[name].hysteresis = max(1, min(10, hysteresis))
+            self._profiles[name].hysteresis = _clamp(hysteresis, 1, 10, 4)
             self.save()
 
 

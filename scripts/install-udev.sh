@@ -27,8 +27,7 @@ echo "[OK] Sudoers kuralı kuruldu."
 
 echo "[INFO] udev kuralı yazılıyor: $UDEV_FILE"
 cat > "$UDEV_FILE" << 'UDEVEOF'
-# v-control: hp-wmi hwmon fan erişimi
-SUBSYSTEM=="hwmon", ATTR{name}=="hp", GROUP="wheel", MODE="0664"
+ACTION!="remove", SUBSYSTEM=="hwmon", ATTR{name}=="hp", RUN+="/bin/sh -c 'chgrp wheel /sys%p/pwm* && chmod g+w /sys%p/pwm*'"
 UDEVEOF
 udevadm control --reload-rules
 udevadm trigger --subsystem-match=hwmon
@@ -36,7 +35,7 @@ echo "[OK] udev kuralı kuruldu."
 
 echo ""
 echo "[INFO] Anlık sysfs izinleri elle düzeltiliyor..."
-for f in $(find $HWMON_PATH -name "pwm1*" 2>/dev/null); do
+for f in $(find $HWMON_PATH -name "pwm*" 2>/dev/null); do
     chown root:wheel "$f"
     chmod 0664 "$f"
     echo "  → $f"

@@ -239,6 +239,9 @@ class QuickOverlay(Gtk.Window):
 
     def _update_now(self) -> bool:
         try:
+            if not self.get_root():
+                return False
+
             p = self._profiles.active_profile
             if not hasattr(self, '_last_prof_state') or self._last_prof_state != (p.name, p.is_manual, p.manual_speed):
                 self._last_prof_state = (p.name, p.is_manual, p.manual_speed)

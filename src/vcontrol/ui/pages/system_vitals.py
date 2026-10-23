@@ -154,6 +154,9 @@ class SystemVitalsPage(Gtk.ScrolledWindow):
         self._graph_cpu["area"].push(reading.cpu_temp)
         self._graph_gpu["area"].push(reading.gpu_temp)
 
+        if not self.get_root():
+            return False
+
         if not self.get_mapped():
             return True
 

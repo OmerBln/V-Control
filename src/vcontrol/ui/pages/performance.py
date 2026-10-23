@@ -191,6 +191,9 @@ class FanPanel(Gtk.ScrolledWindow):
                     b.add_css_class("active-profile")
             self._refresh_ui()
 
+        if not self.get_root():
+            return False
+
         if not self.get_mapped():
             return True
 
