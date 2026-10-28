@@ -38,9 +38,9 @@ class TestThermalFilter(unittest.TestCase):
 
 class TestFanCurves(unittest.TestCase):
     def test_idle_temperatures(self):
-        # At 50°C idle, Eco should be 0%, Balanced 20%, Performance 35%
+        # At 50°C idle, Eco should be 0%, Balanced 30%, Performance 35%
         self.assertEqual(get_target_pwm(50, "Eco"), 0)
-        self.assertEqual(get_target_pwm(50, "Balanced"), 20)
+        self.assertEqual(get_target_pwm(50, "Balanced"), 30)
         self.assertEqual(get_target_pwm(50, "Performance"), 35)
 
     def test_progressive_scaling(self):
@@ -52,6 +52,14 @@ class TestFanCurves(unittest.TestCase):
         # Once at 75°C (speed=60 in Balanced), temperature drops to 73°C (within hysteresis 4)
         speed = get_target_pwm(73, "Balanced", current_speed=60, hysteresis=4)
         self.assertEqual(speed, 60)
+
+    def test_eco_hysteresis(self):
+        # Fan started at 55°C (speed=30). With hysteresis=6, at 50°C it should remain running (30%)
+        speed = get_target_pwm(50, "Eco", current_speed=30, hysteresis=6)
+        self.assertEqual(speed, 30)
+        # Drops below 55 - 6 = 49°C, fan should now stop (0%)
+        speed_off = get_target_pwm(48, "Eco", current_speed=30, hysteresis=6)
+        self.assertEqual(speed_off, 0)
 
 
 if __name__ == "__main__":

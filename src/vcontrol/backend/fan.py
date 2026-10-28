@@ -13,6 +13,8 @@ _NVSMI_CACHE_TTL_S = 1.5
 _NVSMI_RETRY_BACKOFF_S = 10.0
 _NVIDIA_VENDOR_ID = "0x10de"
 _DISPLAY_WINDOW_S = 5.0
+# Lowest PWM at which the fans spin steadily; below it they stall and restart.
+MIN_RUNNING_PERCENT = 30
 
 
 def _read_hwmon_name(hwmon: str) -> str | None:
@@ -172,7 +174,10 @@ class FanController:
         if not self.is_manual_mode() and not self._write_sysfs(self.pwm1_enable, "1"):
             return False
 
-        pwm_val = max(0, min(255, round(percent / 100.0 * 255.0)))
+        percent = max(0, min(100, int(percent)))
+        if 0 < percent < MIN_RUNNING_PERCENT:
+            percent = MIN_RUNNING_PERCENT
+        pwm_val = round(percent / 100.0 * 255.0)
         ok1 = self._write_sysfs(self.pwm1, str(pwm_val))
         ok2 = True
         if self._has_pwm2:

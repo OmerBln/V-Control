@@ -15,6 +15,7 @@ OVERHEAT_RELEASE_TEMP = 85
 _OVERHEAT_CONFIRM_TICKS = 2
 _SPINUP_TICKS = 2
 _HOLD_TICKS = 6
+_STOP_HOLD_TICKS = 15
 
 
 class FanWatchdog:
@@ -144,7 +145,7 @@ class FanWatchdog:
                 return self._last_speed
             self._pending_up_speed = -1
             self._pending_up_count = 0
-            self._hold_down_ticks = _HOLD_TICKS
+            self._hold_down_ticks = _STOP_HOLD_TICKS if self._last_speed == 0 else _HOLD_TICKS
             return curve_target
 
         self._pending_up_speed = -1

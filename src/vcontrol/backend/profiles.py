@@ -22,7 +22,7 @@ class FanProfile:
 
 
 BUILTIN_PROFILES = [
-    FanProfile("Eco", "Eco Mod", "🍃", hysteresis=4),
+    FanProfile("Eco", "Eco Mod", "🍃", hysteresis=6),
     FanProfile("Balanced", "Dengeli Mod", "⚖️", hysteresis=4),
     FanProfile("Performance", "Performans Modu", "🚀", hysteresis=4),
 ]
@@ -67,7 +67,7 @@ class ProfileManager:
                 if name in self._profiles:
                     prof = self._profiles[name]
                     prof.is_manual = bool(p_data.get("is_manual", False))
-                    prof.manual_speed = _clamp(p_data.get("manual_speed", 50), 20, 100, 50)
+                    prof.manual_speed = _clamp(p_data.get("manual_speed", 50), 30, 100, 50)
                     prof.hysteresis = _clamp(p_data.get("hysteresis", 4), 1, 10, 4)
             self._last_mtime = mtime
         except (OSError, ValueError, TypeError, AttributeError) as e:
@@ -109,7 +109,7 @@ class ProfileManager:
     def update_manual(self, name: str, is_manual: bool, speed: int):
         if name in self._profiles:
             self._profiles[name].is_manual = is_manual
-            self._profiles[name].manual_speed = max(20, min(100, int(speed)))
+            self._profiles[name].manual_speed = max(30, min(100, int(speed)))
             self.save()
 
     def update_hysteresis(self, name: str, hysteresis: int):

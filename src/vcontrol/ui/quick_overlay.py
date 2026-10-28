@@ -153,7 +153,7 @@ class QuickOverlay(Gtk.Window):
         
         panel.append(manual_box)
         
-        self.slider = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 20, 100, 1)
+        self.slider = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 30, 100, 1)
         self.slider.add_css_class("omen-slider")
         self.slider.connect("value-changed", self._on_slider_changed)
         
