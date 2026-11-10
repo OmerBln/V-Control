@@ -23,6 +23,7 @@ class FanWatchdog:
         self._enabled = False
         self._timer_id: int | None = None
         self._sample_timer_id: int | None = None
+        self._thread_timer = None
         self._fan = get_controller()
         self._profiles = get_manager()
         self._cpu_filter = ThermalFilter(CONTROL_WINDOW_S)
@@ -40,7 +41,7 @@ class FanWatchdog:
 
     @property
     def is_running(self) -> bool:
-        return self._enabled and self._timer_id is not None
+        return self._enabled and (self._timer_id is not None or self._thread_timer is not None)
 
     def start(self):
         if self._enabled:
@@ -51,6 +52,9 @@ class FanWatchdog:
 
     def stop(self, restore_auto: bool = True):
         self._enabled = False
+        if self._thread_timer is not None:
+            self._thread_timer.cancel()
+            self._thread_timer = None
         for attr in ("_timer_id", "_sample_timer_id"):
             source_id = getattr(self, attr)
             if source_id is None:
@@ -76,10 +80,14 @@ class FanWatchdog:
             self._sample_timer_id = GLib.timeout_add(SAMPLE_INTERVAL_MS, self._sample_tick)
             self._timer_id = GLib.timeout_add_seconds(WATCHDOG_INTERVAL_S, self._tick)
         except ImportError:
-            import threading
-            t = threading.Timer(WATCHDOG_INTERVAL_S, self._tick_thread)
-            t.daemon = True
-            t.start()
+            self._schedule_thread()
+
+    def _schedule_thread(self):
+        import threading
+        t = threading.Timer(WATCHDOG_INTERVAL_S, self._tick_thread)
+        t.daemon = True
+        self._thread_timer = t
+        t.start()
 
     def _sample_tick(self) -> bool:
         if not self._enabled:
@@ -96,7 +104,7 @@ class FanWatchdog:
     def _tick_thread(self):
         if self._enabled:
             self._safe_apply()
-            self._schedule()
+            self._schedule_thread()
 
     def _safe_apply(self):
         try:

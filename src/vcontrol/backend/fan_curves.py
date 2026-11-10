@@ -30,14 +30,19 @@ PERFORMANCE_CURVE = [
 DEFAULT_HYSTERESIS = 4
 CRITICAL_TEMP = 95
 
+CURVES = {
+    "Eco": ECO_CURVE,
+    "Balanced": BALANCED_CURVE,
+    "Performance": PERFORMANCE_CURVE,
+}
+
+
+def get_curve(mode: str) -> list[tuple[int, int]]:
+    return CURVES.get(mode, BALANCED_CURVE)
+
 
 def get_target_pwm(temp: int, mode: str, current_speed: int = -1, hysteresis: int = DEFAULT_HYSTERESIS) -> int:
-    if mode == "Eco":
-        curve = ECO_CURVE
-    elif mode == "Performance":
-        curve = PERFORMANCE_CURVE
-    else:
-        curve = BALANCED_CURVE
+    curve = get_curve(mode)
 
     if current_speed < 0:
         target = curve[0][1]
