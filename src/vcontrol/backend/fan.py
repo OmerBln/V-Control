@@ -13,6 +13,7 @@ _NVSMI_CACHE_TTL_S = 1.5
 _NVSMI_RETRY_BACKOFF_S = 10.0
 _NVIDIA_VENDOR_ID = "0x10de"
 _DISPLAY_WINDOW_S = 5.0
+_CPU_RESOLVE_BACKOFF_S = 10.0
 # Lowest PWM at which the fans spin steadily; below it they stall and restart.
 MIN_RUNNING_PERCENT = 30
 
@@ -66,6 +67,7 @@ class FanController:
         self._cpu_temp_path: str | None = None
         self._cpu_core_paths: list[str] = []
         self._cpu_pkg_path: str | None = None
+        self._cpu_next_resolve: float = 0.0
         self._find_cpu_sensors()
         self._nvsmi_value: int = 0
         self._nvsmi_next_query: float = 0.0
@@ -201,7 +203,7 @@ class FanController:
             "gpu": self.read_gpu_temp(),
         }
 
-    def read_cpu_temp_raw(self) -> int:
+    def _read_cpu_from_paths(self) -> int:
         if self._cpu_core_paths:
             core_vals = []
             for cp in self._cpu_core_paths:
@@ -210,7 +212,7 @@ class FanController:
                     core_vals.append(val)
             if core_vals:
                 avg_core = sum(core_vals) / len(core_vals)
-                pkg_val = self._read_millideg_int(self._cpu_pkg_path) if self._cpu_pkg_path else max(core_vals)
+                pkg_val = self._read_millideg_int(self._cpu_pkg_path) if self._cpu_pkg_path else None
                 if pkg_val is None or pkg_val <= 0:
                     pkg_val = max(core_vals)
                 return round(0.7 * avg_core + 0.3 * pkg_val)
@@ -219,15 +221,20 @@ class FanController:
             val = self._read_millideg_int(self._cpu_temp_path)
             if val is not None and val > 0:
                 return val
-
-        self._find_cpu_sensors()
-        if self._cpu_core_paths:
-            return self.read_cpu_temp_raw()
-        if self._cpu_temp_path:
-            val = self._read_millideg_int(self._cpu_temp_path)
-            if val is not None:
-                return val
         return 0
+
+    def read_cpu_temp_raw(self) -> int:
+        temp = self._read_cpu_from_paths()
+        if temp > 0:
+            return temp
+        # Sensor paths can change after suspend/module reload; re-resolve with a
+        # backoff (no recursion, so all-zero sensors simply report 0).
+        now = time.monotonic()
+        if now < self._cpu_next_resolve:
+            return 0
+        self._cpu_next_resolve = now + _CPU_RESOLVE_BACKOFF_S
+        self._find_cpu_sensors()
+        return self._read_cpu_from_paths()
 
     def _dgpu_suspended(self) -> bool:
         for dev in self._nvidia_pci:
