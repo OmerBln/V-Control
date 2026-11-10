@@ -16,15 +16,16 @@ class FanProfile:
     name: str
     display_name: str
     icon: str
+    short_name: str = ""
     is_manual: bool = False
     manual_speed: int = 50
     hysteresis: int = 4
 
 
 BUILTIN_PROFILES = [
-    FanProfile("Eco", "Eco Mod", "🍃", hysteresis=6),
-    FanProfile("Balanced", "Dengeli Mod", "⚖️", hysteresis=4),
-    FanProfile("Performance", "Performans Modu", "🚀", hysteresis=4),
+    FanProfile("Eco", "Eco Mod", "🍃", short_name="Eco", hysteresis=6),
+    FanProfile("Balanced", "Dengeli Mod", "⚖️", short_name="Dengeli", hysteresis=4),
+    FanProfile("Performance", "Performans Modu", "🚀", short_name="Performans", hysteresis=4),
 ]
 
 
