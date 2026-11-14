@@ -1,18 +1,18 @@
 <p align="center">
-  <img src="data/icons/hpvictustools.svg" width="96" alt="hp-victus-tools logo"/>
+  <img src="data/icons/v-control.svg" width="96" alt="V-Control logo"/>
 </p>
 
-<h1 align="center">hp-victus-tools</h1>
+<h1 align="center">V-Control</h1>
 
 <p align="center">
-  HP Victus 16 için Linux'ta fan hızı ve RGB klavye arka aydınlatma kontrolü.<br/>
-  CachyOS / Arch Linux · KDE Plasma · GTK4
+  HP Victus 16 için Linux'ta fan hızı, termal profil ve RGB klavye arka aydınlatma kontrolü.<br/>
+  CachyOS / Arch Linux · KDE Plasma · GTK4 & Libadwaita
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-Linux-blue?logo=linux" />
   <img src="https://img.shields.io/badge/python-3.11%2B-brightgreen?logo=python" />
-  <img src="https://img.shields.io/badge/GUI-GTK4-orange" />
+  <img src="https://img.shields.io/badge/GUI-GTK4%20%2B%20Libadwaita-orange" />
   <img src="https://img.shields.io/badge/license-MIT-lightgrey" />
 </p>
 
@@ -20,36 +20,36 @@
 
 ## ✨ Özellikler
 
-- 🌀 **Fan Kontrolü** — Otomatik / Manuel / Profil modları
-- ⚡ **Quick Layout** — Kısayol tuşuyla açılan yüzen HUD (OMEN Gaming Hub benzeri)
-- 🎨 **RGB Kontrol** — Klavye arka aydınlatma renk ve parlaklık ayarı
-- 📊 **Gerçek Zamanlı İzleme** — CPU/GPU sıcaklık ve fan RPM grafikleri
-- 🔁 **Watchdog Servisi** — HP BIOS override'ını engeller
+- 🌀 **Fan Kontrolü ve Canlı Eğri** — Eco / Dengeli / Performans modları, histerezis toleransı ve manuel hız kontrolü
+- ⚡ **Quick Overlay (HUD)** — Kısayol tuşuyla açılan yüzen kontrol ve izleme paneli
+- 🎨 **RGB Klavye Kontrolü** — Bölge destekli renk seçimi, hazır renk çipleri ve kalıcı parlaklık ayarı
+- 📊 **Gerçek Zamanlı Sistem İzleme** — CPU, GPU, NVMe sıcaklıkları, sistem yükü ve fan RPM grafikleri
+- 🔁 **Akıllı Termal Motor (`v-control-daemon`)** — Sıcaklık sıçrama filtresi ve BIOS override koruması
 
 ## 🖥️ Sistem Gereksinimleri
 
 | Gereksinim | Detay |
 |---|---|
-| Laptop | HP Victus 16 (hp-wmi sürücülü) |
+| Laptop | HP Victus 16 (`hp-wmi` sürücülü) |
 | OS | CachyOS / Arch Linux (veya türevleri) |
-| Kernel | 6.x+ (`hp-wmi` driver gerekli) |
+| Kernel | 6.x+ (`hp-wmi` sürücüsü gerekli) |
 | Python | 3.11+ |
-| GUI | GTK4 + python-gobject |
+| GUI | GTK4 + Libadwaita (`python-gobject`) |
 
 ## 🚀 Kurulum
 
 ```bash
-git clone https://github.com/KULLANICI/hp-victus-tools.git
-cd hp-victus-tools
+git clone https://github.com/KULLANICI/V-Control.git
+cd V-Control
 bash scripts/setup.sh
 ```
 
-## ⌨️ Quick Layout Kısayolu
+## ⌨️ Quick Overlay Kısayolu
 
-Varsayılan: `Meta + Shift + F`
+Varsayılan: `Shift + F2`
 
 KDE Plasma'da özelleştirmek için:
-*Sistem Ayarları → Kısayollar → Özel Kısayollar → hp-victus-tools*
+*Sistem Ayarları → Kısayollar → V-Control Overlay*
 
 ## 📝 Lisans
 

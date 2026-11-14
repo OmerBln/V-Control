@@ -2,8 +2,8 @@
 Name=V-Control
 GenericName=Laptop Fan & RGB Controller
 Comment=HP Victus 16 fan hızı ve RGB klavye arka aydınlatma kontrolü
-Exec=/home/omerb/Projects/V-Control/.venv/bin/v-control
-Icon=/home/omerb/Projects/V-Control/data/icons/v-control.png
+Exec=v-control
+Icon=v-control
 Type=Application
 Categories=System;HardwareSettings;
 Keywords=fan;rpm;victus;hp;gaming;rgb;keyboard;

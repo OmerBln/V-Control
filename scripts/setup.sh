@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ──────────────────────────────────────────────────────────────────
-# hp-victus-tools Kurulum Scripti
+# V-Control Kurulum Scripti
 # Kullanım: bash scripts/setup.sh
 # ──────────────────────────────────────────────────────────────────
 
@@ -60,9 +60,9 @@ else
 fi
 
 # GTK4 ve python-gobject kontrolü
-python3 -c "import gi; gi.require_version('Gtk','4.0'); from gi.repository import Gtk" 2>/dev/null \
-    && success "GTK4 + python-gobject mevcut." \
-    || error "python-gobject bulunamadı! Kurun: sudo pacman -S python-gobject"
+python3 -c "import gi; gi.require_version('Gtk','4.0'); gi.require_version('Adw','1'); from gi.repository import Gtk, Adw" 2>/dev/null \
+    && success "GTK4 + Libadwaita + python-gobject mevcut." \
+    || error "GTK4 / Libadwaita / python-gobject bulunamadı! Kurun: sudo pacman -S python-gobject gtk4 libadwaita"
 
 # ── 2. Python sanal ortamı ─────────────────────────────────────────
 if [[ -d ".venv" ]]; then
@@ -82,24 +82,74 @@ info "Bağımlılıklar kuruluyor (sadece .venv içine)..."
 .venv/bin/pip install -e ".[dev]" --quiet
 success "Bağımlılıklar kuruldu."
 
-# ── 4. udev kuralları ─────────────────────────────────────────────
+# ── 4. İkon, Masaüstü Başlatıcı ve Systemd Kullanıcı Servisi ──────
+info "İkon, masaüstü başlatıcı ve arka plan servisi kuruluyor..."
+mkdir -p "$HOME/.local/bin"
+ln -sf "$PROJECT_DIR/.venv/bin/v-control" "$HOME/.local/bin/v-control"
+ln -sf "$PROJECT_DIR/.venv/bin/v-control-overlay" "$HOME/.local/bin/v-control-overlay"
+ln -sf "$PROJECT_DIR/.venv/bin/v-control-daemon" "$HOME/.local/bin/v-control-daemon"
+
+ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+mkdir -p "$ICON_DIR"
+if [[ -f "$PROJECT_DIR/data/icons/v-control.svg" ]]; then
+    cp "$PROJECT_DIR/data/icons/v-control.svg" "$ICON_DIR/v-control.svg"
+fi
+
+APP_DIR="$HOME/.local/share/applications"
+mkdir -p "$APP_DIR"
+cat > "$APP_DIR/v-control.desktop" << DESKEOF
+[Desktop Entry]
+Name=V-Control
+GenericName=Laptop Fan & RGB Controller
+Comment=HP Victus 16 fan hızı ve RGB klavye arka aydınlatma kontrolü
+Exec=$PROJECT_DIR/.venv/bin/v-control
+Icon=$PROJECT_DIR/data/icons/v-control.svg
+Type=Application
+Categories=System;HardwareSettings;
+Keywords=fan;rpm;victus;hp;gaming;rgb;keyboard;
+StartupNotify=true
+StartupWMClass=com.vcontrol.app
+DESKEOF
+
+SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
+mkdir -p "$SYSTEMD_USER_DIR"
+cat > "$SYSTEMD_USER_DIR/v-control-daemon.service" << SVCEOF
+[Unit]
+Description=V-Control Fan & Thermal Daemon
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=$PROJECT_DIR/.venv/bin/v-control-daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+SVCEOF
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user daemon-reload || true
+    systemctl --user enable --now v-control-daemon.service \
+        && success "Arka plan servisi (v-control-daemon) etkinleştirildi ve başlatıldı." \
+        || warn "Systemd kullanıcı servisi başlatılamadı."
+fi
+
+# ── 5. udev kuralları ─────────────────────────────────────────────
 info "udev kuralları kuruluyor..."
 bash "$SCRIPT_DIR/install-udev.sh" || warn "udev kurulumu başarısız — manuel kurulum gerekebilir."
 
-# ── 5. KDE kısayolu ───────────────────────────────────────────────
-if command -v kwriteconfig6 >/dev/null 2>&1 || command -v kwriteconfig5 >/dev/null 2>&1; then
-    info "KDE global kısayol kaydediliyor..."
-    bash "$SCRIPT_DIR/install-shortcut.sh" || warn "KDE kısayol kurulumu başarısız."
-else
-    warn "KDE konfigürasyon araçları bulunamadı. Kısayolu manuel ekleyin."
-fi
+# ── 6. Masaüstü kısayolu ──────────────────────────────────────────
+info "Global kısayol kaydediliyor..."
+bash "$SCRIPT_DIR/install-shortcut.sh" || warn "Kısayol kurulumu başarısız."
 
-# ── 6. Tamamlandı ─────────────────────────────────────────────────
+# ── 7. Tamamlandı ─────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}✓ Kurulum tamamlandı!${RESET}"
 echo ""
 echo "Kullanım:"
-echo "  Ana uygulama:   .venv/bin/hp-victus-tools"
-echo "  Quick Overlay:  .venv/bin/hp-victus-overlay"
-echo "  Kısayol:        Meta + Shift + F"
+echo "  Ana uygulama:   .venv/bin/v-control"
+echo "  Quick Overlay:  .venv/bin/v-control-overlay"
+echo "  Arka Plan:      .venv/bin/v-control-daemon"
+echo "  Kısayol:        Shift + F2"
 echo ""
