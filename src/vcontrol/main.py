@@ -9,6 +9,9 @@ gi.require_version("Gdk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gtk
 
+from vcontrol.backend.settings import load_settings
+from vcontrol.ui.util import apply_theme, load_css
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -17,36 +20,35 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_css():
-    css_path = os.path.join(os.path.dirname(__file__), "ui", "style.css")
-    if not os.path.exists(css_path):
-        logger.warning(f"CSS file not found: {css_path}")
+def _register_icon_paths() -> None:
+    display = Gdk.Display.get_default()
+    if display is None:
         return
-    provider = Gtk.CssProvider()
-    provider.load_from_path(css_path)
-    Gtk.StyleContext.add_provider_for_display(
-        Gdk.Display.get_default(),
-        provider,
-        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
-    )
-    logger.info("CSS loaded.")
+    icon_theme = Gtk.IconTheme.get_for_display(display)
+    candidates = [
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "icons")),
+        os.path.expanduser("~/.local/share/icons"),
+        "/usr/local/share/icons",
+        "/usr/share/icons",
+    ]
+    for path in candidates:
+        if os.path.isdir(path):
+            icon_theme.add_search_path(path)
+    Gtk.Window.set_default_icon_name("v-control")
 
 
 class HPVictusApp(Adw.Application):
-
     def __init__(self):
         super().__init__(application_id="com.vcontrol.app")
         self._window = None
 
     def do_activate(self):
-        icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
-        icon_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "icons")
-        icon_theme.add_search_path(os.path.abspath(icon_path))
-        Gtk.Window.set_default_icon_name("v-control")
-
+        _register_icon_paths()
         if self._window is None:
             load_css()
+            apply_theme(load_settings().theme)
             from vcontrol.ui.window import MainWindow
+
             self._window = MainWindow(app=self)
         self._window.present()
 

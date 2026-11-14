@@ -4,142 +4,137 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Gtk
-
-logger = logging.getLogger(__name__)
+from gi.repository import Adw, Gtk
 
 from vcontrol.ui.pages.lighting import LightingPage
 from vcontrol.ui.pages.performance import FanPanel
 from vcontrol.ui.pages.system_vitals import SystemVitalsPage
 from vcontrol.ui.settings_panel import SettingsPanel
 
+logger = logging.getLogger(__name__)
 
-class MainWindow(Gtk.ApplicationWindow):
-    def __init__(self, app: Gtk.Application):
+
+class MainWindow(Adw.ApplicationWindow):
+    def __init__(self, app: Adw.Application):
         super().__init__(application=app)
         self.add_css_class("main-window")
         self.set_title("V-Control")
-        self.set_default_size(1050, 700)
+        self.set_default_size(1060, 720)
+        self.set_size_request(360, 480)
         self._build_ui()
 
-    def _build_ui(self):
-        root = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        self.set_child(root)
+    def _build_ui(self) -> None:
+        self.split_view = Adw.NavigationSplitView()
+        self.split_view.set_min_sidebar_width(210)
+        self.split_view.set_max_sidebar_width(250)
+
+        sidebar_page = Adw.NavigationPage.new(self._build_sidebar(), "V-Control")
+        self.content_page = Adw.NavigationPage.new(self._build_content_area(), "Cihaz Kontrolü")
+
+        self.split_view.set_sidebar(sidebar_page)
+        self.split_view.set_content(self.content_page)
+        self.set_content(self.split_view)
+
+        # Collapse sidebar automatically on narrow windows
+        bp = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 760sp"))
+        bp.add_setter(self.split_view, "collapsed", True)
+        self.add_breakpoint(bp)
+
+    def _build_sidebar(self) -> Gtk.Widget:
+        toolbar_view = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        header.set_show_end_title_buttons(False)
+
+        brand_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        brand_title = Gtk.Label(label="V-Control", xalign=0)
+        brand_title.add_css_class("sidebar-logo-title")
+        brand_sub = Gtk.Label(label="HP VICTUS EDITION", xalign=0)
+        brand_sub.add_css_class("sidebar-logo-sub")
+        brand_box.append(brand_title)
+        brand_box.append(brand_sub)
+        header.set_title_widget(brand_box)
+        toolbar_view.add_top_bar(header)
+
+        self.nav_list = Gtk.ListBox()
+        self.nav_list.set_selection_mode(Gtk.SelectionMode.SINGLE)
+        self.nav_list.add_css_class("navigation-sidebar")
+        self.nav_list.connect("row-selected", self._on_nav_row_selected)
+
+        self._rows: dict[str, Gtk.ListBoxRow] = {}
+        self._add_nav_row("victus", "💻", "Cihaz Kontrolü")
+        self._add_nav_row("settings", "⚙️", "Ayarlar")
+
+        toolbar_view.set_content(self.nav_list)
+        return toolbar_view
+
+    def _add_nav_row(self, page_id: str, icon: str, title: str) -> None:
+        row = Gtk.ListBoxRow()
+        row.page_id = page_id  # type: ignore[attr-defined]
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+
+        icon_lbl = Gtk.Label(label=icon)
+        title_lbl = Gtk.Label(label=title, xalign=0, hexpand=True)
+        box.append(icon_lbl)
+        box.append(title_lbl)
+        row.set_child(box)
+        self.nav_list.append(row)
+        self._rows[page_id] = row
+
+    def _build_content_area(self) -> Gtk.Widget:
+        toolbar_view = Adw.ToolbarView()
+        self.content_header = Adw.HeaderBar()
+
+        self.victus_stack = Adw.ViewStack()
+        self.victus_stack.add_titled_with_icon(
+            FanPanel(), "performance", "Performans", "speedometer-symbolic"
+        )
+        self.victus_stack.add_titled_with_icon(
+            SystemVitalsPage(), "vitals", "Sistem İzleme", "utilities-system-monitor-symbolic"
+        )
+        self.victus_stack.add_titled_with_icon(
+            LightingPage(), "lighting", "Aydınlatma", "display-brightness-symbolic"
+        )
+
+        self.view_switcher = Adw.ViewSwitcher()
+        self.view_switcher.set_stack(self.victus_stack)
+        self.view_switcher.set_policy(Adw.ViewSwitcherPolicy.WIDE)
+
+        self.settings_title = Adw.WindowTitle(title="Ayarlar", subtitle="Görünüm ve servis yönetimi")
+        self.content_header.set_title_widget(self.view_switcher)
+
+        self.switcher_bar = Adw.ViewSwitcherBar()
+        self.switcher_bar.set_stack(self.victus_stack)
 
         self.main_stack = Gtk.Stack()
         self.main_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         self.main_stack.set_hexpand(True)
         self.main_stack.set_vexpand(True)
+        self.main_stack.add_named(self.victus_stack, "victus")
+        self.main_stack.add_named(SettingsPanel(parent_window=self), "settings")
 
-        self.main_stack.add_named(self._build_victus_page(), "victus")
-        self.main_stack.add_named(SettingsPanel(), "settings")
+        toolbar_view.add_top_bar(self.content_header)
+        toolbar_view.set_content(self.main_stack)
+        toolbar_view.add_bottom_bar(self.switcher_bar)
 
-        root.append(self._build_sidebar())
-        root.append(self.main_stack)
+        self.nav_list.select_row(self._rows["victus"])
+        return toolbar_view
 
-    def _build_sidebar(self) -> Gtk.Widget:
-        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        sidebar.add_css_class("sidebar")
-
-        # Logo
-        logo_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        logo_box.add_css_class("sidebar-logo")
-
-        title = Gtk.Label(label="V-Control")
-        title.add_css_class("sidebar-logo-title")
-        title.set_xalign(0)
-
-        sub = Gtk.Label(label="HP Victus Edition")
-        sub.add_css_class("sidebar-logo-sub")
-        sub.set_xalign(0)
-
-        logo_box.append(title)
-        logo_box.append(sub)
-        sidebar.append(logo_box)
-
-        # Nav
-        nav_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        nav_box.set_margin_top(12)
-        nav_box.set_margin_bottom(12)
-
-        self._nav_buttons: dict[str, Gtk.Button] = {}
-
-        def add_nav(page_id, icon, label):
-            btn = Gtk.Button()
-            inner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-            inner.set_margin_start(4)
-            inner.append(Gtk.Label(label=icon))
-            inner.append(Gtk.Label(label=label))
-            btn.set_child(inner)
-            btn.add_css_class("nav-btn")
-            btn.connect("clicked", self._on_nav, page_id)
-            self._nav_buttons[page_id] = btn
-            nav_box.append(btn)
-
-        add_nav("victus", "💻", "Cihaz Kontrolü")
-
-        sep_lbl = Gtk.Label(label="Sistem")
-        sep_lbl.add_css_class("sidebar-category")
-        sep_lbl.set_xalign(0)
-        sep_lbl.set_margin_top(12)
-        sep_lbl.set_margin_start(20)
-        sep_lbl.set_margin_bottom(4)
-        nav_box.append(sep_lbl)
-
-        add_nav("settings", "⚙️", "Ayarlar")
-
-        sidebar.append(nav_box)
-
-        self._nav_buttons["victus"].add_css_class("active")
-        self.main_stack.set_visible_child_name("victus")
-
-        return sidebar
-
-    def _on_nav(self, btn, page_id):
+    def _on_nav_row_selected(self, _listbox: Gtk.ListBox, row: Gtk.ListBoxRow | None) -> None:
+        if row is None:
+            return
+        page_id = getattr(row, "page_id", "victus")
         self.main_stack.set_visible_child_name(page_id)
-        for k, b in self._nav_buttons.items():
-            b.remove_css_class("active")
-            if k == page_id:
-                b.add_css_class("active")
-
-    def _build_victus_page(self) -> Gtk.Widget:
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        vbox.add_css_class("victus-page")
-
-        tab_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-        tab_bar.add_css_class("top-tab-bar")
-
-        self.victus_stack = Gtk.Stack()
-        self.victus_stack.set_transition_type(Gtk.StackTransitionType.SLIDE_LEFT_RIGHT)
-        self.victus_stack.set_vexpand(True)
-
-        self._tab_buttons: dict[str, Gtk.Button] = {}
-
-        def add_tab(tab_id, label, widget):
-            self.victus_stack.add_named(widget, tab_id)
-            btn = Gtk.Button(label=label)
-            btn.add_css_class("top-tab-btn")
-            btn.connect("clicked", self._on_tab, tab_id)
-            self._tab_buttons[tab_id] = btn
-            tab_bar.append(btn)
-
-        add_tab("performance", "Performans", FanPanel())
-        add_tab("vitals", "Sistem İzleme", SystemVitalsPage())
-        add_tab("lighting", "Aydınlatma", LightingPage())
-
-        self._tab_buttons["performance"].add_css_class("active")
-        self.victus_stack.set_visible_child_name("performance")
-
-        vbox.append(tab_bar)
-        vbox.append(self.victus_stack)
-        return vbox
-
-    def _on_tab(self, btn, tab_id):
-        self.victus_stack.set_visible_child_name(tab_id)
-        for k, b in self._tab_buttons.items():
-            b.remove_css_class("active")
-            if k == tab_id:
-                b.add_css_class("active")
+        if page_id == "victus":
+            self.content_header.set_title_widget(self.view_switcher)
+            self.content_page.set_title("Cihaz Kontrolü")
+        else:
+            self.content_header.set_title_widget(self.settings_title)
+            self.content_page.set_title("Ayarlar")
+        self.split_view.set_show_content(True)
 
     def do_close_request(self) -> bool:
         return False
