@@ -6,6 +6,7 @@ import subprocess
 import time
 
 from vcontrol.backend.profiles import CONFIG_DIR
+from vcontrol.backend.sysfs import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -21,15 +22,7 @@ def heartbeat_path() -> str:
 
 
 def write_heartbeat(path: str | None = None) -> None:
-    path = path or heartbeat_path()
-    tmp_path = f"{path}.tmp"
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump({"pid": os.getpid(), "time": time.time()}, f)
-        os.replace(tmp_path, path)
-    except OSError as e:
-        logger.debug(f"Heartbeat write failed: {e}")
+    atomic_write_json(path or heartbeat_path(), {"pid": os.getpid(), "time": time.time()}, indent=None)
 
 
 def clear_heartbeat(path: str | None = None) -> None:

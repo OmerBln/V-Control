@@ -4,6 +4,7 @@ import os
 from dataclasses import asdict, dataclass, field
 
 from vcontrol.backend.profiles import CONFIG_DIR
+from vcontrol.backend.sysfs import atomic_write_json, clamp
 
 logger = logging.getLogger(__name__)
 
@@ -26,25 +27,10 @@ class AppSettings:
     _path: str = field(default=SETTINGS_FILE, repr=False, compare=False)
 
     def save(self) -> None:
-        data = {"theme": self.theme}
+        data: dict = {"theme": self.theme}
         if self.lighting is not None:
             data["lighting"] = asdict(self.lighting)
-        directory = os.path.dirname(self._path)
-        tmp_path = f"{self._path}.tmp"
-        try:
-            os.makedirs(directory, exist_ok=True)
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            os.replace(tmp_path, self._path)
-        except OSError as e:
-            logger.error(f"Settings save error: {e}")
-
-
-def _clamp_byte(value, default: int) -> int:
-    try:
-        return max(0, min(255, int(value)))
-    except (TypeError, ValueError):
-        return default
+        atomic_write_json(self._path, data)
 
 
 def load_settings(path: str | None = None) -> AppSettings:
@@ -69,10 +55,10 @@ def load_settings(path: str | None = None) -> AppSettings:
     lighting = data.get("lighting")
     if isinstance(lighting, dict):
         settings.lighting = LightingState(
-            brightness=_clamp_byte(lighting.get("brightness"), 255),
-            red=_clamp_byte(lighting.get("red"), 255),
-            green=_clamp_byte(lighting.get("green"), 255),
-            blue=_clamp_byte(lighting.get("blue"), 255),
+            brightness=clamp(lighting.get("brightness"), 0, 255, 255),
+            red=clamp(lighting.get("red"), 0, 255, 255),
+            green=clamp(lighting.get("green"), 0, 255, 255),
+            blue=clamp(lighting.get("blue"), 0, 255, 255),
         )
     return settings
 
