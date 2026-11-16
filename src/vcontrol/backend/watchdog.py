@@ -30,6 +30,7 @@ class FanWatchdog:
         self._last_speed = -1
         self._last_mode = None
         self._last_is_manual = None
+        self._last_max_fan: bool | None = None
         self._pending_up_speed = -1
         self._pending_up_count = 0
         self._hold_down_ticks = 0
@@ -179,15 +180,23 @@ class FanWatchdog:
         active_prof = self._profiles.active_profile
         mode_name = active_prof.name
         is_manual = active_prof.is_manual
+        max_fan = self._profiles.max_fan
         hysteresis = getattr(active_prof, "hysteresis", 4)
 
-        if mode_name != self._last_mode or is_manual != self._last_is_manual:
+        if (
+            mode_name != self._last_mode
+            or is_manual != self._last_is_manual
+            or max_fan != self._last_max_fan
+        ):
             self._reset_state()
             self._last_mode = mode_name
             self._last_is_manual = is_manual
+            self._last_max_fan = max_fan
 
         cpu_raw = cpu_temp = gpu_temp = control_temp = 0
-        if is_manual:
+        if max_fan:
+            target_speed = 100
+        elif is_manual:
             target_speed = max(0, min(100, int(active_prof.manual_speed)))
         else:
             cpu_raw = self._fan.read_cpu_temp_raw()
@@ -233,7 +242,9 @@ class FanWatchdog:
 
         self._has_control = True
         self._last_speed = target_speed
-        if is_manual:
+        if max_fan:
+            logger.info("Fan speed set MAX BOOST (100%).")
+        elif is_manual:
             logger.info(f"Fan speed set MANUAL to {target_speed}%.")
         else:
             crit_flag = " [OVERHEAT]" if self._in_overheat else ""

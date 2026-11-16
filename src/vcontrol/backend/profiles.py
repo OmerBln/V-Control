@@ -2,7 +2,9 @@ import json
 import logging
 import os
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+
+from vcontrol.backend.sysfs import atomic_write_json, clamp
 
 logger = logging.getLogger(__name__)
 
@@ -27,19 +29,14 @@ BUILTIN_PROFILES = [
     FanProfile("Balanced", "Dengeli Mod", "⚖️", short_name="Dengeli", hysteresis=4),
     FanProfile("Performance", "Performans Modu", "🚀", short_name="Performans", hysteresis=4),
 ]
-
-
-def _clamp(value, lo: int, hi: int, default: int) -> int:
-    try:
-        return max(lo, min(hi, int(value)))
-    except (TypeError, ValueError):
-        return default
+_BUILTIN_MAP = {p.name: p for p in BUILTIN_PROFILES}
 
 
 class ProfileManager:
     def __init__(self) -> None:
-        self._profiles = {p.name: p for p in BUILTIN_PROFILES}
+        self._profiles = {p.name: replace(p) for p in BUILTIN_PROFILES}
         self._active_name = "Balanced"
+        self._max_fan: bool = False
         self._last_mtime: float = 0.0
         self._last_load_time: float = 0.0
         self._load()
@@ -63,33 +60,31 @@ class ProfileManager:
             active = data.get("active", "Balanced")
             if active in self._profiles:
                 self._active_name = active
+            self._max_fan = bool(data.get("max_fan", False))
             for p_data in data.get("profiles", []):
                 name = p_data.get("name")
                 if name in self._profiles:
                     prof = self._profiles[name]
                     prof.is_manual = bool(p_data.get("is_manual", False))
-                    prof.manual_speed = _clamp(p_data.get("manual_speed", 50), 30, 100, 50)
-                    prof.hysteresis = _clamp(p_data.get("hysteresis", 4), 1, 10, 4)
+                    prof.manual_speed = clamp(p_data.get("manual_speed", 50), 30, 100, 50)
+                    prof.hysteresis = clamp(p_data.get("hysteresis", 4), 1, 10, 4)
             self._last_mtime = mtime
         except (OSError, ValueError, TypeError, AttributeError) as e:
             self._last_mtime = mtime
             logger.error(f"Profile load error: {e}")
 
     def save(self):
-        os.makedirs(CONFIG_DIR, exist_ok=True)
         data = {
             "active": self._active_name,
+            "max_fan": self._max_fan,
             "profiles": [asdict(p) for p in self._profiles.values()],
         }
-        tmp_path = f"{PROFILES_FILE}.tmp"
-        try:
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            os.replace(tmp_path, PROFILES_FILE)
-            self._last_mtime = os.path.getmtime(PROFILES_FILE)
+        if atomic_write_json(PROFILES_FILE, data):
+            try:
+                self._last_mtime = os.path.getmtime(PROFILES_FILE)
+            except OSError:
+                pass
             self._last_load_time = time.monotonic()
-        except (OSError, TypeError, ValueError) as e:
-            logger.error(f"Profile save error: {e}")
 
     def all_profiles(self) -> list[FanProfile]:
         return [self._profiles["Eco"], self._profiles["Balanced"], self._profiles["Performance"]]
@@ -102,6 +97,15 @@ class ProfileManager:
         self._load()
         return self._profiles.get(self._active_name, self._profiles["Balanced"])
 
+    @property
+    def max_fan(self) -> bool:
+        self._load()
+        return self._max_fan
+
+    def set_max_fan(self, enabled: bool) -> None:
+        self._max_fan = bool(enabled)
+        self.save()
+
     def set_active(self, name: str):
         if name in self._profiles:
             self._active_name = name
@@ -110,12 +114,19 @@ class ProfileManager:
     def update_manual(self, name: str, is_manual: bool, speed: int):
         if name in self._profiles:
             self._profiles[name].is_manual = is_manual
-            self._profiles[name].manual_speed = max(30, min(100, int(speed)))
+            self._profiles[name].manual_speed = clamp(speed, 30, 100, 50)
             self.save()
 
     def update_hysteresis(self, name: str, hysteresis: int):
         if name in self._profiles:
-            self._profiles[name].hysteresis = _clamp(hysteresis, 1, 10, 4)
+            self._profiles[name].hysteresis = clamp(hysteresis, 1, 10, 4)
+            self.save()
+
+    def reset_profile(self, name: str) -> None:
+        default = _BUILTIN_MAP.get(name)
+        if default is not None:
+            self._profiles[name] = replace(default)
+            self._max_fan = False
             self.save()
 
 
