@@ -1,8 +1,9 @@
 import glob
 import logging
 import os
-import subprocess
 from dataclasses import dataclass
+
+from vcontrol.backend.sysfs import clamp, read_sysfs, write_sysfs
 
 logger = logging.getLogger(__name__)
 
@@ -102,29 +103,19 @@ class RGBController:
         if not target:
             return RGBStatus(method=self._method, supported=False)
 
-        brightness = 255
-        max_brightness = 255
+        brightness = clamp(read_sysfs(os.path.join(target, "brightness"), "255"), 0, 255, 255)
+        max_brightness = clamp(
+            read_sysfs(os.path.join(target, "max_brightness"), "255"), 1, 255, 255
+        )
         red, green, blue = 255, 255, 255
 
-        try:
-            with open(os.path.join(target, "brightness")) as f:
-                brightness = int(f.read().strip())
-            with open(os.path.join(target, "max_brightness")) as f:
-                max_brightness = int(f.read().strip())
-        except (OSError, ValueError) as e:
-            logger.debug(f"LED brightness read failed: {e}")
-
-        multi_path = os.path.join(target, "multi_intensity")
-        if os.path.exists(multi_path):
-            try:
-                with open(multi_path) as f:
-                    parts = f.read().strip().split()
-                    if len(parts) >= 3:
-                        red = int(parts[0])
-                        green = int(parts[1])
-                        blue = int(parts[2])
-            except (OSError, ValueError) as e:
-                logger.debug(f"LED multi_intensity read failed: {e}")
+        multi_raw = read_sysfs(os.path.join(target, "multi_intensity"))
+        if multi_raw:
+            parts = multi_raw.split()
+            if len(parts) >= 3:
+                red = clamp(parts[0], 0, 255, 255)
+                green = clamp(parts[1], 0, 255, 255)
+                blue = clamp(parts[2], 0, 255, 255)
 
         return RGBStatus(
             brightness=brightness,
@@ -142,14 +133,14 @@ class RGBController:
         if not self.supported:
             return False
 
-        level = max(0, min(255, int(level)))
         success = True
         targets = [self._led_path] if self._led_path else []
         targets.extend(self._zone_paths)
 
         for target in set(filter(None, targets)):
-            ok = self._write_sysfs(os.path.join(target, "brightness"), str(level))
-            if not ok:
+            max_b = clamp(read_sysfs(os.path.join(target, "max_brightness"), "255"), 1, 255, 255)
+            clamped = clamp(level, 0, max_b, 0)
+            if not write_sysfs(os.path.join(target, "brightness"), str(clamped)):
                 success = False
         return success
 
@@ -157,13 +148,13 @@ class RGBController:
         if not self._has_color:
             return False
 
-        r = max(0, min(255, int(red)))
-        g = max(0, min(255, int(green)))
-        b = max(0, min(255, int(blue)))
+        r = clamp(red, 0, 255, 255)
+        g = clamp(green, 0, 255, 255)
+        b = clamp(blue, 0, 255, 255)
         val_str = f"{r} {g} {b}"
 
         targets = []
-        if zone >= 0 and zone < len(self._zone_paths):
+        if 0 <= zone < len(self._zone_paths):
             targets.append(self._zone_paths[zone])
         else:
             if self._led_path:
@@ -172,31 +163,9 @@ class RGBController:
 
         success = True
         for target in set(filter(None, targets)):
-            ok = self._write_sysfs(os.path.join(target, "multi_intensity"), val_str)
-            if not ok:
+            if not write_sysfs(os.path.join(target, "multi_intensity"), val_str):
                 success = False
         return success
-
-    def _write_sysfs(self, path: str, value: str) -> bool:
-        try:
-            with open(path, "w") as f:
-                f.write(value)
-            return True
-        except PermissionError:
-            try:
-                subprocess.run(
-                    ["sudo", "-n", "tee", path],
-                    input=value.encode(),
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    check=True,
-                )
-                return True
-            except (OSError, subprocess.SubprocessError):
-                logger.error(f"Permission denied: {path}")
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"LED write error ({path}): {e}")
-        return False
 
     def discover_wmi(self) -> dict:
         result = {
