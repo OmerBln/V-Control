@@ -1,11 +1,15 @@
+import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from vcontrol.backend import profiles
 from vcontrol.backend.fan import FanController
 from vcontrol.backend.fan_curves import get_curve, get_target_pwm
+from vcontrol.backend.sysfs import atomic_write_json, clamp
 from vcontrol.backend.thermal_filter import ThermalFilter
+from vcontrol.backend.watchdog import FanWatchdog
 
 
 class TestThermalFilter(unittest.TestCase):
@@ -74,6 +78,51 @@ class TestFanCurves(unittest.TestCase):
             ctrl._cpu_temp_path = zero_file
             with patch.object(ctrl, "_find_cpu_sensors", lambda: None):
                 self.assertEqual(ctrl.read_cpu_temp_raw(), 0)
+
+    def test_sysfs_helpers(self):
+        self.assertEqual(clamp("42", 0, 100, 50), 42)
+        self.assertEqual(clamp(150, 0, 100, 50), 100)
+        self.assertEqual(clamp(-5, 0, 100, 50), 0)
+        self.assertEqual(clamp("bad", 0, 100, 50), 50)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = os.path.join(tmp, "nested", "data.json")
+            self.assertTrue(atomic_write_json(target, {"ok": True, "val": 7}))
+            with open(target, encoding="utf-8") as f:
+                self.assertEqual(json.load(f), {"ok": True, "val": 7})
+
+    def test_watchdog_max_fan_boost(self):
+        orig_dir = profiles.CONFIG_DIR
+        orig_file = profiles.PROFILES_FILE
+        with tempfile.TemporaryDirectory() as tmp:
+            try:
+                profiles.CONFIG_DIR = tmp
+                profiles.PROFILES_FILE = os.path.join(tmp, "profiles.json")
+                pm = profiles.ProfileManager()
+                pm.set_active("Balanced")
+                pm.set_max_fan(True)
+
+                mock_fan = MagicMock()
+                mock_fan.available = True
+                mock_fan.is_manual_mode.return_value = True
+                mock_fan.set_fan_speed.return_value = True
+                mock_fan.read_cpu_temp_raw.return_value = 50
+                mock_fan.read_gpu_temp.return_value = 40
+
+                with (
+                    patch("vcontrol.backend.watchdog.get_controller", return_value=mock_fan),
+                    patch("vcontrol.backend.watchdog.get_manager", return_value=pm),
+                ):
+                    wd = FanWatchdog()
+                    wd._apply_logic()
+                    mock_fan.set_fan_speed.assert_called_with(100)
+
+                    pm.set_max_fan(False)
+                    wd._apply_logic()
+                    mock_fan.set_fan_speed.assert_called_with(30)
+            finally:
+                profiles.CONFIG_DIR = orig_dir
+                profiles.PROFILES_FILE = orig_file
 
 
 if __name__ == "__main__":

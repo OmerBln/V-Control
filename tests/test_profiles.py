@@ -62,6 +62,37 @@ class TestProfiles(unittest.TestCase):
         daemon_status.clear_heartbeat(hb_path)
         self.assertFalse(daemon_status.is_daemon_alive(hb_path))
 
+    def test_builtin_profiles_not_mutated(self):
+        eco_default = next(p for p in profiles.BUILTIN_PROFILES if p.name == "Eco")
+        orig_hyst = eco_default.hysteresis
+        pm = profiles.ProfileManager()
+        pm.update_manual("Eco", is_manual=True, speed=88)
+        pm.update_hysteresis("Eco", 9)
+
+        self.assertFalse(eco_default.is_manual)
+        self.assertEqual(eco_default.manual_speed, 50)
+        self.assertEqual(eco_default.hysteresis, orig_hyst)
+
+    def test_max_fan_and_reset_profile(self):
+        pm = profiles.ProfileManager()
+        pm.set_active("Eco")
+        pm.update_manual("Eco", is_manual=True, speed=77)
+        pm.update_hysteresis("Eco", 9)
+        pm.set_max_fan(True)
+
+        pm2 = profiles.ProfileManager()
+        self.assertTrue(pm2.max_fan)
+        self.assertTrue(pm2.active_profile.is_manual)
+
+        pm2.reset_profile("Eco")
+        pm3 = profiles.ProfileManager()
+        self.assertFalse(pm3.max_fan)
+        eco = pm3.get_profile("Eco")
+        self.assertIsNotNone(eco)
+        self.assertFalse(eco.is_manual)
+        self.assertEqual(eco.manual_speed, 50)
+        self.assertEqual(eco.hysteresis, 6)
+
 
 if __name__ == "__main__":
     unittest.main()
