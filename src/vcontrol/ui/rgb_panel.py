@@ -79,15 +79,31 @@ class RGBPanel(Gtk.ScrolledWindow):
     def __init__(self, rgb: RGBController | None = None):
         super().__init__()
         self.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.set_hexpand(True)
+        self.set_vexpand(True)
         self._rgb = rgb or get_controller()
         self._updating = False
         self._selected_zone = -1
         self._current_rgb = (255, 255, 255)
         self._current_brightness = 255
+        self._max_brightness = 255
+        self._last_nonzero_brightness = 255
         self._chips: list[tuple[_ColorChip, tuple[int, int, int]]] = []
         self._bright_debouncer = Debouncer(150, self._commit_brightness)
         self._color_debouncer = Debouncer(150, self._commit_color)
         self._build_ui()
+
+    def flush_pending(self) -> None:
+        self._bright_debouncer.flush()
+        self._color_debouncer.flush()
+
+    @staticmethod
+    def _color_subtitle(r: int, g: int, b: int) -> str:
+        return f"Renk paletinden ton seçin · #{r:02X}{g:02X}{b:02X}"
+
+    def _update_bright_label(self, level: int) -> None:
+        pct = round(level / max(1, self._max_brightness) * 100)
+        self._bright_pct_lbl.set_label(f"%{pct}")
 
     def _build_ui(self) -> None:
         clamp = Adw.Clamp()
@@ -100,7 +116,11 @@ class RGBPanel(Gtk.ScrolledWindow):
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=24)
         status = self._rgb.get_status()
+        self._max_brightness = max(1, status.max_brightness)
         self._current_brightness = status.brightness
+        self._last_nonzero_brightness = (
+            status.brightness if status.brightness > 0 else self._max_brightness
+        )
         self._current_rgb = (status.red, status.green, status.blue)
 
         if not status.supported:
@@ -115,17 +135,34 @@ class RGBPanel(Gtk.ScrolledWindow):
                 title="Arka Işık Parlaklığı",
                 description=f"Donanım yöntemi: {status.method}",
             )
+
+            power_row = Adw.ActionRow(
+                title="Klavye Aydınlatması",
+                subtitle="Arka ışığı hızlıca açıp kapatır",
+            )
+            self._power_switch = Gtk.Switch(valign=Gtk.Align.CENTER)
+            self._power_switch.set_active(status.brightness > 0)
+            self._power_switch.connect("state-set", self._on_power_toggled)
+            power_row.add_suffix(self._power_switch)
+            bright_group.add(power_row)
+
             bright_row = Adw.ActionRow(title="Parlaklık Seviyesi")
 
             self._bright_scale = Gtk.Scale.new_with_range(
-                Gtk.Orientation.HORIZONTAL, 0, max(1, status.max_brightness), 1
+                Gtk.Orientation.HORIZONTAL, 0, self._max_brightness, 1
             )
             self._bright_scale.set_value(status.brightness)
             self._bright_scale.set_hexpand(True)
-            self._bright_scale.set_size_request(220, -1)
+            self._bright_scale.set_size_request(200, -1)
             self._bright_scale.connect("value-changed", self._on_brightness_changed)
 
+            self._bright_pct_lbl = Gtk.Label(xalign=1, valign=Gtk.Align.CENTER)
+            self._bright_pct_lbl.set_width_chars(5)
+            self._bright_pct_lbl.add_css_class("graph-legend-value")
+            self._update_bright_label(status.brightness)
+
             bright_row.add_suffix(self._bright_scale)
+            bright_row.add_suffix(self._bright_pct_lbl)
             bright_group.add(bright_row)
             content.append(bright_group)
 
@@ -145,9 +182,9 @@ class RGBPanel(Gtk.ScrolledWindow):
                     zone_row.connect("notify::selected", self._on_zone_changed)
                     color_group.add(zone_row)
 
-                preview_row = Adw.ActionRow(
+                self._preview_row = Adw.ActionRow(
                     title="Özel Renk",
-                    subtitle="Renk paletinden dilediğiniz tonu seçin",
+                    subtitle=self._color_subtitle(status.red, status.green, status.blue),
                 )
 
                 self._color_preview = _ColorChip(status.red, status.green, status.blue, size=26)
@@ -166,9 +203,9 @@ class RGBPanel(Gtk.ScrolledWindow):
                 self._color_btn.set_valign(Gtk.Align.CENTER)
                 self._color_btn.connect("notify::rgba", self._on_custom_color_selected)
 
-                preview_row.add_suffix(self._color_preview)
-                preview_row.add_suffix(self._color_btn)
-                color_group.add(preview_row)
+                self._preview_row.add_suffix(self._color_preview)
+                self._preview_row.add_suffix(self._color_btn)
+                color_group.add(self._preview_row)
 
                 preset_box = Gtk.FlowBox()
                 preset_box.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -220,11 +257,34 @@ class RGBPanel(Gtk.ScrolledWindow):
         idx = int(combo_row.get_selected())
         self._selected_zone = -1 if idx == 0 else idx - 1
 
+    def _on_power_toggled(self, _switch: Gtk.Switch, state: bool) -> bool:
+        if self._updating:
+            return False
+        if state:
+            target = self._last_nonzero_brightness or self._max_brightness
+        else:
+            if self._current_brightness > 0:
+                self._last_nonzero_brightness = self._current_brightness
+            target = 0
+        self._updating = True
+        self._bright_scale.set_value(target)
+        self._updating = False
+        self._current_brightness = target
+        self._update_bright_label(target)
+        self._bright_debouncer(target)
+        return False
+
     def _on_brightness_changed(self, scale: Gtk.Scale) -> None:
         if self._updating:
             return
         level = int(scale.get_value())
         self._current_brightness = level
+        if level > 0:
+            self._last_nonzero_brightness = level
+        self._updating = True
+        self._power_switch.set_active(level > 0)
+        self._updating = False
+        self._update_bright_label(level)
         self._bright_debouncer(level)
 
     def _commit_brightness(self, level: int) -> None:
@@ -240,6 +300,7 @@ class RGBPanel(Gtk.ScrolledWindow):
         rgba.alpha = 1.0
         self._color_btn.set_rgba(rgba)
         self._color_preview.set_rgb(r, g, b)
+        self._preview_row.set_subtitle(self._color_subtitle(r, g, b))
         self._sync_chip_selection(r, g, b)
         self._current_rgb = (r, g, b)
         self._updating = False
@@ -253,6 +314,7 @@ class RGBPanel(Gtk.ScrolledWindow):
         g = round(rgba.green * 255.0)
         b = round(rgba.blue * 255.0)
         self._color_preview.set_rgb(r, g, b)
+        self._preview_row.set_subtitle(self._color_subtitle(r, g, b))
         self._sync_chip_selection(r, g, b)
         self._current_rgb = (r, g, b)
         self._color_debouncer(r, g, b, self._selected_zone)

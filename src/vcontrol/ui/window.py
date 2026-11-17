@@ -4,7 +4,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, Gdk, Gtk
 
 from vcontrol.ui.pages.lighting import LightingPage
 from vcontrol.ui.pages.performance import FanPanel
@@ -23,6 +23,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.set_size_request(360, 480)
         self._build_ui()
 
+        key_ctrl = Gtk.EventControllerKey.new()
+        key_ctrl.connect("key-pressed", self._on_key_pressed)
+        self.add_controller(key_ctrl)
+
     def _build_ui(self) -> None:
         self.split_view = Adw.NavigationSplitView()
         self.split_view.set_min_sidebar_width(210)
@@ -33,12 +37,16 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.split_view.set_sidebar(sidebar_page)
         self.split_view.set_content(self.content_page)
+        self.split_view.connect("notify::collapsed", self._on_collapsed_changed)
         self.set_content(self.split_view)
 
         # Collapse sidebar automatically on narrow windows
         bp = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 760sp"))
         bp.add_setter(self.split_view, "collapsed", True)
         self.add_breakpoint(bp)
+
+        self.nav_list.select_row(self._rows["victus"])
+        self._sync_header_and_bar()
 
     def _build_sidebar(self) -> Gtk.Widget:
         toolbar_view = Adw.ToolbarView()
@@ -88,21 +96,26 @@ class MainWindow(Adw.ApplicationWindow):
         toolbar_view = Adw.ToolbarView()
         self.content_header = Adw.HeaderBar()
 
+        self.fan_panel = FanPanel()
+        self.vitals_page = SystemVitalsPage()
+        self.lighting_page = LightingPage()
+
         self.victus_stack = Adw.ViewStack()
         self.victus_stack.add_titled_with_icon(
-            FanPanel(), "performance", "Performans", "speedometer-symbolic"
+            self.fan_panel, "performance", "Performans", "speedometer-symbolic"
         )
         self.victus_stack.add_titled_with_icon(
-            SystemVitalsPage(), "vitals", "Sistem İzleme", "utilities-system-monitor-symbolic"
+            self.vitals_page, "vitals", "Sistem İzleme", "utilities-system-monitor-symbolic"
         )
         self.victus_stack.add_titled_with_icon(
-            LightingPage(), "lighting", "Aydınlatma", "display-brightness-symbolic"
+            self.lighting_page, "lighting", "Aydınlatma", "display-brightness-symbolic"
         )
 
         self.view_switcher = Adw.ViewSwitcher()
         self.view_switcher.set_stack(self.victus_stack)
         self.view_switcher.set_policy(Adw.ViewSwitcherPolicy.WIDE)
 
+        self.victus_title = Adw.WindowTitle(title="Cihaz Kontrolü", subtitle="HP Victus 16")
         self.settings_title = Adw.WindowTitle(title="Ayarlar", subtitle="Görünüm ve servis yönetimi")
         self.content_header.set_title_widget(self.view_switcher)
 
@@ -119,22 +132,58 @@ class MainWindow(Adw.ApplicationWindow):
         toolbar_view.add_top_bar(self.content_header)
         toolbar_view.set_content(self.main_stack)
         toolbar_view.add_bottom_bar(self.switcher_bar)
-
-        self.nav_list.select_row(self._rows["victus"])
         return toolbar_view
+
+    def _sync_header_and_bar(self) -> None:
+        page_id = self.main_stack.get_visible_child_name() or "victus"
+        collapsed = self.split_view.get_collapsed()
+        if page_id == "victus":
+            self.content_page.set_title("Cihaz Kontrolü")
+            self.content_header.set_title_widget(
+                self.victus_title if collapsed else self.view_switcher
+            )
+            self.switcher_bar.set_reveal(collapsed)
+        else:
+            self.content_page.set_title("Ayarlar")
+            self.content_header.set_title_widget(self.settings_title)
+            self.switcher_bar.set_reveal(False)
+
+    def _on_collapsed_changed(self, _split_view: Adw.NavigationSplitView, _pspec) -> None:
+        self._sync_header_and_bar()
 
     def _on_nav_row_selected(self, _listbox: Gtk.ListBox, row: Gtk.ListBoxRow | None) -> None:
         if row is None:
             return
         page_id = getattr(row, "page_id", "victus")
         self.main_stack.set_visible_child_name(page_id)
-        if page_id == "victus":
-            self.content_header.set_title_widget(self.view_switcher)
-            self.content_page.set_title("Cihaz Kontrolü")
-        else:
-            self.content_header.set_title_widget(self.settings_title)
-            self.content_page.set_title("Ayarlar")
+        self._sync_header_and_bar()
         self.split_view.set_show_content(True)
 
+    def _switch_victus_tab(self, tab_name: str) -> None:
+        self.nav_list.select_row(self._rows["victus"])
+        self.victus_stack.set_visible_child_name(tab_name)
+
+    def _on_key_pressed(self, _ctrl, keyval, _keycode, state) -> bool:
+        if not (state & Gdk.ModifierType.CONTROL_MASK):
+            return False
+        if keyval in (Gdk.KEY_1, Gdk.KEY_KP_1):
+            self._switch_victus_tab("performance")
+            return True
+        if keyval in (Gdk.KEY_2, Gdk.KEY_KP_2):
+            self._switch_victus_tab("vitals")
+            return True
+        if keyval in (Gdk.KEY_3, Gdk.KEY_KP_3):
+            self._switch_victus_tab("lighting")
+            return True
+        if keyval == Gdk.KEY_comma:
+            self.nav_list.select_row(self._rows["settings"])
+            return True
+        if keyval in (Gdk.KEY_q, Gdk.KEY_Q, Gdk.KEY_w, Gdk.KEY_W):
+            self.close()
+            return True
+        return False
+
     def do_close_request(self) -> bool:
+        self.fan_panel.flush_pending()
+        self.lighting_page.panel.flush_pending()
         return False

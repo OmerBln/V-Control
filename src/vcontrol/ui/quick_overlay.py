@@ -5,11 +5,14 @@ import gi
 import psutil
 
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gdk, GLib, Gtk
+gi.require_version("Adw", "1")
+from gi.repository import Adw, Gdk, GLib, Gtk
 
+from vcontrol.backend.daemon_status import is_daemon_alive
 from vcontrol.backend.fan import get_controller
 from vcontrol.backend.profiles import get_manager
-from vcontrol.ui.util import Debouncer, load_css, set_temp_class
+from vcontrol.backend.settings import load_settings
+from vcontrol.ui.util import Debouncer, apply_theme, load_css, set_temp_class
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +27,13 @@ class QuickOverlay(Gtk.Window):
         self.set_decorated(False)
         self.set_resizable(False)
         self.add_css_class("omen-overlay-window")
-        self.set_default_size(520, 300)
+        self.set_default_size(520, 320)
 
         self._fan = get_controller()
         self._profiles = get_manager()
         self._update_timer: int | None = None
         self._updating = False
-        self._last_prof_state: tuple[str, bool, int] | None = None
+        self._last_prof_state: tuple[str, bool, int, bool] | None = None
         self._slider_debouncer = Debouncer(150, self._commit_slider)
 
         self._build_ui()
@@ -82,14 +85,12 @@ class QuickOverlay(Gtk.Window):
         self.stack.add_named(self.fan_panel, "fan")
         self.stack.add_named(self.vitals_panel, "vitals")
 
-        self.revealer = Gtk.Revealer()
-        self.revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_RIGHT)
-        self.revealer.set_child(self.stack)
-        self.revealer.set_reveal_child(True)
-
         main_box.append(sidebar)
-        main_box.append(self.revealer)
-        self.set_child(main_box)
+        main_box.append(self.stack)
+
+        handle = Gtk.WindowHandle()
+        handle.set_child(main_box)
+        self.set_child(handle)
 
         self.btn_fan.set_active(True)
 
@@ -117,7 +118,7 @@ class QuickOverlay(Gtk.Window):
         return panel
 
     def _build_fan_panel(self) -> Gtk.Widget:
-        panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         panel.add_css_class("omen-popout")
         panel.set_valign(Gtk.Align.START)
 
@@ -134,8 +135,15 @@ class QuickOverlay(Gtk.Window):
 
         panel.append(mode_box)
 
+        self.btn_boost = Gtk.ToggleButton(label="🚀 Maksimum Fan (Turbo Boost)")
+        self.btn_boost.add_css_class("omen-mode-btn")
+        self.btn_boost.add_css_class("boost-btn")
+        self.btn_boost.set_tooltip_text("Kısayol: B")
+        self.btn_boost.connect("toggled", self._on_boost_toggled)
+        panel.append(self.btn_boost)
+
         manual_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        manual_box.set_margin_top(8)
+        manual_box.set_margin_top(4)
 
         lbl_auto = Gtk.Label(label="OTOMATİK")
         lbl_auto.add_css_class("omen-card-title")
@@ -159,6 +167,10 @@ class QuickOverlay(Gtk.Window):
         self.slider.add_css_class("omen-slider")
         self.slider.connect("value-changed", self._on_slider_changed)
         panel.append(self.slider)
+
+        self._daemon_lbl = Gtk.Label(xalign=0)
+        self._daemon_lbl.add_css_class("omen-daemon-badge")
+        panel.append(self._daemon_lbl)
 
         self._refresh_fan_ui()
         return panel
@@ -184,12 +196,21 @@ class QuickOverlay(Gtk.Window):
 
     def _on_tab_changed(self, btn: Gtk.ToggleButton, name: str) -> None:
         if btn.get_active():
-            self.revealer.set_reveal_child(True)
             self.stack.set_visible_child_name(name)
 
-    def _on_mode_clicked(self, _btn: Gtk.Button, name: str) -> None:
+    def _select_mode(self, name: str) -> None:
         self._slider_debouncer.flush()
         self._profiles.set_active(name)
+        self._refresh_fan_ui()
+
+    def _on_mode_clicked(self, _btn: Gtk.Button, name: str) -> None:
+        self._select_mode(name)
+
+    def _on_boost_toggled(self, btn: Gtk.ToggleButton) -> None:
+        if self._updating:
+            return
+        self._slider_debouncer.flush()
+        self._profiles.set_max_fan(btn.get_active())
         self._refresh_fan_ui()
 
     def _on_manual_toggled(self, _switch: Gtk.Switch, state: bool) -> bool:
@@ -213,21 +234,41 @@ class QuickOverlay(Gtk.Window):
     def _refresh_fan_ui(self) -> None:
         self._updating = True
         p = self._profiles.active_profile
+        max_fan = self._profiles.max_fan
         for name, btn in self.mode_buttons.items():
             if name == p.name:
                 btn.add_css_class("active-mode")
             else:
                 btn.remove_css_class("active-mode")
 
-        self.slider.set_value(p.manual_speed)
-        self.lbl_speed_pct.set_label(f"%{int(p.manual_speed)}")
+        self.btn_boost.set_active(max_fan)
+        if max_fan:
+            self.btn_boost.add_css_class("boost-active")
+        else:
+            self.btn_boost.remove_css_class("boost-active")
+
         self.manual_switch.set_active(p.is_manual)
-        self.slider.set_sensitive(p.is_manual)
+        self.manual_switch.set_sensitive(not max_fan)
+        self.slider.set_value(100 if max_fan else p.manual_speed)
+        self.slider.set_sensitive(p.is_manual and not max_fan)
+        self.lbl_speed_pct.set_label("%100" if max_fan else f"%{int(p.manual_speed)}")
         self._updating = False
 
     def _on_key_pressed(self, _ctrl, keyval, _keycode, _state) -> bool:
         if keyval == Gdk.KEY_Escape:
             self.close()
+            return True
+        if keyval in (Gdk.KEY_1, Gdk.KEY_KP_1):
+            self._select_mode("Eco")
+            return True
+        if keyval in (Gdk.KEY_2, Gdk.KEY_KP_2):
+            self._select_mode("Balanced")
+            return True
+        if keyval in (Gdk.KEY_3, Gdk.KEY_KP_3):
+            self._select_mode("Performance")
+            return True
+        if keyval in (Gdk.KEY_b, Gdk.KEY_B):
+            self.btn_boost.set_active(not self.btn_boost.get_active())
             return True
         return False
 
@@ -247,10 +288,20 @@ class QuickOverlay(Gtk.Window):
                 return False
 
             p = self._profiles.active_profile
-            state = (p.name, p.is_manual, p.manual_speed)
+            max_fan = self._profiles.max_fan
+            state = (p.name, p.is_manual, p.manual_speed, max_fan)
             if not self._slider_debouncer.pending and self._last_prof_state != state:
                 self._last_prof_state = state
                 self._refresh_fan_ui()
+
+            alive = is_daemon_alive()
+            self._daemon_lbl.set_label("● Servis Aktif" if alive else "○ Servis Kapalı")
+            if alive:
+                self._daemon_lbl.add_css_class("alive")
+                self._daemon_lbl.remove_css_class("dead")
+            else:
+                self._daemon_lbl.add_css_class("dead")
+                self._daemon_lbl.remove_css_class("alive")
 
             temps = self._fan.get_temperatures()
             rpms = self._fan.get_rpms()
@@ -278,7 +329,7 @@ class QuickOverlay(Gtk.Window):
         return False
 
 
-class OverlayApp(Gtk.Application):
+class OverlayApp(Adw.Application):
     def __init__(self):
         super().__init__(application_id="com.vcontrol.overlay")
         self._window: QuickOverlay | None = None
@@ -290,6 +341,7 @@ class OverlayApp(Gtk.Application):
             return
 
         load_css()
+        apply_theme(load_settings().theme)
         self._window = QuickOverlay(app=self)
         self._window.present()
         self._window.start_updates()
