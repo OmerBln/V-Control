@@ -18,8 +18,8 @@ class SystemVitalsPage(Gtk.ScrolledWindow):
         self._fan = get_controller()
 
         clamp = Adw.Clamp()
-        clamp.set_maximum_size(680)
-        clamp.set_tightening_threshold(420)
+        clamp.set_maximum_size(740)
+        clamp.set_tightening_threshold(440)
         clamp.set_margin_top(24)
         clamp.set_margin_bottom(28)
         clamp.set_margin_start(16)
@@ -27,26 +27,45 @@ class SystemVitalsPage(Gtk.ScrolledWindow):
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
 
-        # ── Live stat grid ─────────────────────────────────────
+        # ── Live 4x2 symmetric stat grid ───────────────────────
         stat_grid = Gtk.Grid(column_spacing=12, row_spacing=12)
         stat_grid.set_column_homogeneous(True)
 
         self._card_cpu = MetricCard("🌡", "CPU Sıcaklığı", "°C", "temp-cool")
         self._card_gpu = MetricCard("⚡", "GPU Sıcaklığı", "°C", "temp-cool")
         self._card_nvme = MetricCard("💾", "NVMe Disk", "°C", "temp-cool")
+        self._card_freq = MetricCard("⏱", "CPU Frekansı", "GHz", "val-cpu")
+
         self._card_cpu_load = MetricCard("🧮", "CPU Kullanımı", "%", "val-cpu")
         self._card_ram = MetricCard("🧠", "Bellek (RAM)", "%", "val-gpu")
-        self._card_f1 = MetricCard("🌀", "Fan 1", "RPM", "val-rpm")
-        self._card_f2 = MetricCard("🌀", "Fan 2", "RPM", "val-rpm")
+        self._card_f1 = MetricCard("🌀", "Sol Fan", "RPM", "val-rpm")
+        self._card_f2 = MetricCard("🌀", "Sağ Fan", "RPM", "val-rpm")
 
         stat_grid.attach(self._card_cpu, 0, 0, 1, 1)
         stat_grid.attach(self._card_gpu, 1, 0, 1, 1)
         stat_grid.attach(self._card_nvme, 2, 0, 1, 1)
+        stat_grid.attach(self._card_freq, 3, 0, 1, 1)
+
         stat_grid.attach(self._card_cpu_load, 0, 1, 1, 1)
         stat_grid.attach(self._card_ram, 1, 1, 1, 1)
         stat_grid.attach(self._card_f1, 2, 1, 1, 1)
-        stat_grid.attach(self._card_f2, 0, 2, 3, 1)
+        stat_grid.attach(self._card_f2, 3, 1, 1, 1)
         root.append(stat_grid)
+
+        # ── Graphs header + clear action ───────────────────────
+        graphs_hdr = Gtk.Box(spacing=12)
+        graphs_lbl = Gtk.Label(label="Canlı Grafikler", xalign=0, hexpand=True)
+        graphs_lbl.add_css_class("heading")
+        clear_btn = Gtk.Button()
+        clear_btn.add_css_class("flat")
+        clear_btn.set_child(
+            Adw.ButtonContent(icon_name="edit-clear-all-symbolic", label="Grafikleri Temizle")
+        )
+        clear_btn.set_tooltip_text("Tüm grafik geçmişini sıfırla")
+        clear_btn.connect("clicked", self._on_clear_graphs)
+        graphs_hdr.append(graphs_lbl)
+        graphs_hdr.append(clear_btn)
+        root.append(graphs_hdr)
 
         # ── Multi-series graphs ────────────────────────────────
         self._graph_temp = GraphCard(
@@ -78,6 +97,11 @@ class SystemVitalsPage(Gtk.ScrolledWindow):
         self._tick()
         GLib.timeout_add(1000, self._tick)
 
+    def _on_clear_graphs(self, _btn: Gtk.Button) -> None:
+        self._graph_temp.clear()
+        self._graph_load.clear()
+        self._graph_fan.clear()
+
     def _tick(self) -> bool:
         if not self.get_root():
             return False
@@ -99,6 +123,7 @@ class SystemVitalsPage(Gtk.ScrolledWindow):
         self._card_cpu.set_value(f"{reading.cpu_temp:.0f}")
         self._card_gpu.set_value(f"{reading.gpu_temp:.0f}")
         self._card_nvme.set_value(f"{reading.nvme_temp:.0f}")
+        self._card_freq.set_value(f"{reading.cpu_freq_ghz:.2f}" if reading.cpu_freq_ghz > 0 else "–")
         self._card_cpu_load.set_value(f"{cpu_pct:.0f}")
         self._card_ram.set_value(f"{ram_pct:.0f}")
         self._card_f1.set_value(f"{int(f1)}")

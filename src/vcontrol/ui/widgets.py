@@ -14,6 +14,7 @@ PURPLE: Color = (0.62, 0.49, 0.94)
 CYAN: Color = (0.0, 0.83, 1.0)
 GREEN: Color = (0.18, 0.83, 0.75)
 ORANGE: Color = (0.98, 0.57, 0.24)
+RED: Color = (0.97, 0.44, 0.44)
 
 
 def _fg(widget: Gtk.Widget) -> tuple[float, float, float]:
@@ -71,6 +72,7 @@ class LineGraph(Gtk.DrawingArea):
     """Multi-series line graph with grid and axis labels, drawn with Cairo."""
 
     MARGIN_LEFT = 40
+    MARGIN_RIGHT = 12
     MARGIN_BOTTOM = 18
     MARGIN_TOP = 6
 
@@ -98,6 +100,12 @@ class LineGraph(Gtk.DrawingArea):
         if self.get_mapped():
             self.queue_draw()
 
+    def clear(self) -> None:
+        for series in self._series:
+            series.clear()
+        if self.get_mapped():
+            self.queue_draw()
+
     def _scale_max(self) -> float:
         if self._fixed_max is not None:
             peak = max((max(s) for s in self._series if s), default=0.0)
@@ -108,7 +116,7 @@ class LineGraph(Gtk.DrawingArea):
     def _draw(self, _area, cr, w, h):
         fr, fg, fb = _fg(self)
         left, top = self.MARGIN_LEFT, self.MARGIN_TOP
-        plot_w = max(1, w - left - 4)
+        plot_w = max(1, w - left - self.MARGIN_RIGHT)
         plot_h = max(1, h - top - self.MARGIN_BOTTOM)
         vmax = self._scale_max()
 
@@ -183,8 +191,9 @@ class GraphCard(Gtk.Box):
         self.add_css_class("vitals-graph-card")
         self._unit = unit
         self._fmt = value_format
+        self._peaks: list[float] = [0.0] * len(series)
 
-        header = Gtk.Box(spacing=16)
+        header = Gtk.Box(spacing=14)
         title_lbl = Gtk.Label(label=title, xalign=0, hexpand=True)
         title_lbl.add_css_class("vitals-graph-title")
         header.append(title_lbl)
@@ -208,6 +217,20 @@ class GraphCard(Gtk.Box):
 
     def push(self, values: list[float]) -> None:
         self.graph.push(values)
-        for lbl, v in zip(self._legend_values, values):
-            lbl.set_label(f"{self._fmt.format(v)} {self._unit}")
+        for idx, (lbl, v) in enumerate(zip(self._legend_values, values)):
+            val = max(0.0, float(v))
+            if val > self._peaks[idx]:
+                self._peaks[idx] = val
+            peak = self._peaks[idx]
+            cur_str = f"{self._fmt.format(val)} {self._unit}"
+            if peak > 0:
+                lbl.set_label(f"{cur_str} (↑{self._fmt.format(peak)})")
+            else:
+                lbl.set_label(cur_str)
+
+    def clear(self) -> None:
+        self._peaks = [0.0] * len(self._legend_values)
+        self.graph.clear()
+        for lbl in self._legend_values:
+            lbl.set_label("–")
 
